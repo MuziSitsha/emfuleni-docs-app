@@ -4,6 +4,7 @@ import Dashboard from './Dashboard';
 import PaymentRecorder from './PaymentRecorder';
 import RecentDocuments from './RecentDocuments';
 import Clients from './Clients';
+import Reports from './Reports';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
       <PaymentRecorder />
       <RecentDocuments />
       <Clients />
+      <Reports />
     </>
   );
 }
