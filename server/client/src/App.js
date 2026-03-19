@@ -3,6 +3,7 @@ import { Container, Navbar, Nav } from 'react-bootstrap';
 import Dashboard from './Dashboard';
 import PaymentRecorder from './PaymentRecorder';
 import RecentDocuments from './RecentDocuments';
+import Clients from './Clients';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
       <Dashboard />
       <PaymentRecorder />
       <RecentDocuments />
+      <Clients />
     </>
   );
 }
