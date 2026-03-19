@@ -1,32 +1,39 @@
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Container, Navbar, Nav } from 'react-bootstrap';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import Dashboard from './Dashboard';
 import PaymentRecorder from './PaymentRecorder';
-import RecentDocuments from './RecentDocuments';
 import Clients from './Clients';
 import Reports from './Reports';
+import RecentDocuments from './RecentDocuments'; // now serves as History page
 
 function App() {
   return (
-    <>
+    <Router>
       <Navbar bg="primary" variant="dark" expand="lg">
         <Container>
-          <Navbar.Brand href="#home">Emfuleni Business Lines</Navbar.Brand>
+          <Navbar.Brand as={Link} to="/">Emfuleni Business Lines</Navbar.Brand>
           <Nav className="me-auto">
-            <Nav.Link href="#dashboard">Dashboard</Nav.Link>
-            <Nav.Link href="#clients">Clients</Nav.Link>
-            <Nav.Link href="#reports">Reports</Nav.Link>
-            <Nav.Link href="#payments">Payments</Nav.Link>
+            <Nav.Link as={Link} to="/dashboard">Quotations</Nav.Link>
+            <Nav.Link as={Link} to="/clients">Clients</Nav.Link>
+            <Nav.Link as={Link} to="/reports">Reports</Nav.Link>
+            <Nav.Link as={Link} to="/payments">Payments</Nav.Link>
+            <Nav.Link as={Link} to="/history">History</Nav.Link>
           </Nav>
         </Container>
       </Navbar>
 
-      <Dashboard />
-      <PaymentRecorder />
-      <RecentDocuments />
-      <Clients />
-      <Reports />
-    </>
+      <Container className="mt-4">
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/clients" element={<Clients />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/payments" element={<PaymentRecorder />} />
+          <Route path="/history" element={<RecentDocuments />} />
+        </Routes>
+      </Container>
+    </Router>
   );
 }
 
