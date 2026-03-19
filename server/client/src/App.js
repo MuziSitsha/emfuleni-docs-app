@@ -1,6 +1,8 @@
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Container, Navbar, Nav } from 'react-bootstrap';
 import Dashboard from './Dashboard';
+import PaymentRecorder from './PaymentRecorder';
+import RecentDocuments from './RecentDocuments';
 
 function App() {
   return (
@@ -18,6 +20,8 @@ function App() {
       </Navbar>
 
       <Dashboard />
+      <PaymentRecorder />
+      <RecentDocuments />
     </>
   );
 }
