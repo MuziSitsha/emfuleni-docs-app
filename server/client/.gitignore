@@ -13,6 +13,7 @@
 
 # misc
 .DS_Store
+.run/
 .tmp/
 .env.local
 .env.development.local

@@ -1,0 +1,356 @@
+.delivery-notes-page {
+  --paper: #fffdf8;
+  --ink: #1f2933;
+  --muted: #6b7280;
+  --line: #d4d8dd;
+  --accent: #263746;
+  --accent-soft: #edf2f6;
+  padding-bottom: 3rem;
+}
+
+.delivery-notes-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.delivery-notes-header p {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  max-width: 42rem;
+}
+
+.delivery-note-stack {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.delivery-note-card {
+  background: linear-gradient(180deg, #fffefb 0%, var(--paper) 100%);
+  border: 1px solid rgba(38, 55, 70, 0.12);
+  border-radius: 24px;
+  box-shadow: 0 18px 45px rgba(19, 27, 35, 0.08);
+  overflow: hidden;
+}
+
+.delivery-note-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem 0;
+  flex-wrap: wrap;
+}
+
+.delivery-note-document {
+  color: var(--ink);
+  padding: 2rem;
+}
+
+.delivery-note-top {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(220px, 0.9fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.delivery-note-brand {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.delivery-note-logo {
+  width: 170px;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.delivery-note-company h3 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.delivery-note-tagline {
+  margin: 0.15rem 0 0.75rem;
+  color: #4f6a7d;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+}
+
+.delivery-note-company p {
+  margin: 0.15rem 0;
+  color: var(--muted);
+}
+
+.delivery-note-title {
+  text-align: right;
+}
+
+.delivery-note-title h1 {
+  margin: 0;
+  font-size: clamp(2.3rem, 4vw, 3.5rem);
+  font-weight: 300;
+  letter-spacing: 0.06em;
+}
+
+.delivery-note-balance {
+  margin-top: 1.15rem;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+}
+
+.delivery-note-balance-label {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.delivery-note-balance-amount {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.delivery-note-meta {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
+  gap: 1.5rem 2rem;
+  margin-top: 2.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.delivery-note-block-label {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-bottom: 0.4rem;
+}
+
+.delivery-note-client {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.delivery-note-subject {
+  margin-top: 1.35rem;
+}
+
+.delivery-note-detail-grid {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.delivery-note-detail-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.delivery-note-detail-row dt {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.delivery-note-detail-row dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.delivery-note-items {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.8rem;
+}
+
+.delivery-note-items thead {
+  background: var(--accent);
+  color: white;
+}
+
+.delivery-note-items th,
+.delivery-note-items td {
+  padding: 0.9rem 0.95rem;
+  vertical-align: top;
+}
+
+.delivery-note-items th {
+  font-weight: 600;
+}
+
+.delivery-note-items tbody tr {
+  border-bottom: 1px solid var(--line);
+}
+
+.delivery-note-items tbody tr:nth-child(even) {
+  background: rgba(237, 242, 246, 0.5);
+}
+
+.delivery-note-items th:nth-child(1),
+.delivery-note-items td:nth-child(1) {
+  width: 68px;
+  text-align: center;
+}
+
+.delivery-note-items th:nth-child(3),
+.delivery-note-items td:nth-child(3) {
+  width: 140px;
+  text-align: right;
+}
+
+.delivery-note-footer {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(220px, 0.9fr);
+  gap: 2rem;
+  margin-top: 2.25rem;
+}
+
+.delivery-note-editor {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding: 1rem 1.1rem;
+  background: var(--accent-soft);
+  border: 1px solid rgba(38, 55, 70, 0.1);
+  border-radius: 18px;
+}
+
+.delivery-note-editor-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.4fr) minmax(220px, 1fr);
+  gap: 1rem;
+}
+
+.delivery-note-editor label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.delivery-note-editor textarea,
+.delivery-note-editor input {
+  width: 100%;
+  border: 1px solid rgba(38, 55, 70, 0.2);
+  border-radius: 12px;
+  padding: 0.8rem 0.9rem;
+  font: inherit;
+  color: var(--ink);
+  background: white;
+}
+
+.delivery-note-editor textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.delivery-note-editor-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.delivery-note-helper {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.delivery-note-notes h4,
+.delivery-note-signature h4 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  color: var(--muted);
+}
+
+.delivery-note-notes p {
+  margin: 0;
+  min-height: 3.5rem;
+}
+
+.delivery-note-signature-line {
+  min-height: 3.75rem;
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 2px solid rgba(38, 55, 70, 0.35);
+  padding-bottom: 0.35rem;
+  font-weight: 600;
+}
+
+.delivery-note-empty {
+  padding: 2.5rem;
+  text-align: center;
+  color: var(--muted);
+  background: white;
+  border: 1px dashed rgba(38, 55, 70, 0.25);
+  border-radius: 20px;
+}
+
+@media (max-width: 900px) {
+  .delivery-note-top,
+  .delivery-note-meta,
+  .delivery-note-footer {
+    grid-template-columns: 1fr;
+  }
+
+  .delivery-note-title {
+    text-align: left;
+  }
+
+  .delivery-note-balance {
+    align-items: flex-start;
+  }
+
+  .delivery-note-detail-row {
+    grid-template-columns: 100px 1fr;
+  }
+
+  .delivery-note-logo {
+    width: 140px;
+  }
+
+  .delivery-note-editor-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  body {
+    background: white;
+  }
+
+  .navbar,
+  .delivery-note-toolbar,
+  .delivery-note-editor,
+  .delivery-notes-header,
+  .alert {
+    display: none !important;
+  }
+
+  .delivery-notes-page {
+    padding: 0;
+  }
+
+  .delivery-note-stack {
+    gap: 0;
+  }
+
+  .delivery-note-card {
+    box-shadow: none;
+    border: none;
+    border-radius: 0;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .delivery-note-document {
+    padding: 0;
+  }
+}

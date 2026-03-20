@@ -75,9 +75,13 @@ function Dashboard() {
     const endpoint = docType === 'Quotation' ? '/quotations' : '/invoices';
     const safeClientName = trimmedClientName.replace(/\s+/g, '_');
     const generatedFileName = `${docType}_${documentDate}_${safeClientName}.pdf`;
+    const invoicePrefix = docType === 'Quotation' ? 'QTN' : 'INV';
+    const generatedInvoiceNumber = `${invoicePrefix}-${Date.now()}`;
 
     const payload = {
       clientName: trimmedClientName,
+      invoiceNumber: generatedInvoiceNumber,
+      status: docType === 'Quotation' ? 'Pending' : undefined,
       date: documentDate,
       items: cleanedItems,
       vatApplied: applyVat,

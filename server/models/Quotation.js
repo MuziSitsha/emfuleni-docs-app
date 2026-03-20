@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 
 const QuotationSchema = new mongoose.Schema({
   clientName: { type: String, required: true },
+  invoiceNumber: { type: String },
+  status: {
+    type: String,
+    enum: ['Pending', 'Approved'],
+    default: 'Pending',
+  },
   date: { type: Date, default: Date.now },
   items: [
     {
