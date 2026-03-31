@@ -1,0 +1,8 @@
+{
+  "name": "emfuleni-docs-app",
+  "private": true,
+  "scripts": {
+    "start": "node server/server.js",
+    "build": "npm --prefix server/client run build"
+  }
+}

@@ -1,26 +1,11 @@
-require('dotenv').config();
-
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const documentsRoutes = require('./routes/documents');
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-// Routes
-app.use('/api', documentsRoutes);
+const fs = require('fs');
+const path = require('path');
+const app = require('./app');
 
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/emfuleni';
+const clientBuildPath = path.join(__dirname, 'client', 'build');
 
-mongoose
-  .connect(MONGODB_URI)
-  .then(() => {
-    console.log('MongoDB connected');
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  })
-  .catch((err) => {
-    console.error('MongoDB connection failed:', err.message);
-  });
+app.listen(PORT, () => {
+  const staticMode = fs.existsSync(clientBuildPath) ? 'with client build' : 'API only';
+  console.log(`Server running on port ${PORT} (${staticMode})`);
+});

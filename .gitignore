@@ -49,6 +49,8 @@ web_modules/
 
 # Optional npm cache directory
 .npm
+server/client/.npm-cache/
+venv/
 
 # Optional eslint cache
 .eslintcache
