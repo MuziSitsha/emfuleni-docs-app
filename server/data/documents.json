@@ -1,5 +1,7 @@
 {
+  "clients": [],
   "quotations": [],
   "invoices": [],
-  "deliveryNotes": []
+  "deliveryNotes": [],
+  "payments": []
 }

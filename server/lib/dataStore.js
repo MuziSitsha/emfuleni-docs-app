@@ -52,9 +52,11 @@ async function ensureStore() {
     await fs.access(dataFile);
   } catch {
     const initialState = {
+      clients: [],
       quotations: [],
       invoices: [],
       deliveryNotes: [],
+      payments: [],
     };
 
     await fs.writeFile(dataFile, JSON.stringify(initialState, null, 2));
@@ -67,9 +69,11 @@ async function readStore() {
   const parsed = JSON.parse(contents);
 
   return {
+    clients: Array.isArray(parsed.clients) ? parsed.clients : [],
     quotations: Array.isArray(parsed.quotations) ? parsed.quotations : [],
     invoices: Array.isArray(parsed.invoices) ? parsed.invoices : [],
     deliveryNotes: Array.isArray(parsed.deliveryNotes) ? parsed.deliveryNotes : [],
+    payments: Array.isArray(parsed.payments) ? parsed.payments : [],
   };
 }
 
@@ -94,6 +98,102 @@ function buildDocumentFileName(prefix, date, clientName) {
     .replace(/\s+/g, '_');
   const safeDate = String(date || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
   return `${prefix}_${safeDate}_${safeClientName}.pdf`;
+}
+
+function normalizeClientName(value) {
+  return String(value || '').trim();
+}
+
+function compareClientNames(firstName, secondName) {
+  return normalizeClientName(firstName).toLowerCase() ===
+    normalizeClientName(secondName).toLowerCase();
+}
+
+function buildClientRecord(payload = {}) {
+  const name = normalizeClientName(payload.name || payload.clientName);
+  const status = String(payload.status || 'Active').trim() || 'Active';
+
+  if (!name) {
+    throw createHttpError(400, 'Client name is required.');
+  }
+
+  return {
+    _id: payload._id || randomUUID(),
+    name,
+    contact: String(payload.contact || '').trim(),
+    status,
+    createdAt: payload.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function upsertClientRecord(store, payload = {}) {
+  const name = normalizeClientName(payload.name || payload.clientName);
+
+  if (!name) {
+    return null;
+  }
+
+  const existingClient = store.clients.find((client) =>
+    compareClientNames(client.name, name)
+  );
+
+  if (existingClient) {
+    existingClient.contact =
+      String(payload.contact || existingClient.contact || '').trim();
+    existingClient.status =
+      String(payload.status || existingClient.status || 'Active').trim() || 'Active';
+    existingClient.updatedAt = new Date().toISOString();
+    return existingClient;
+  }
+
+  const nextClient = buildClientRecord(payload);
+  store.clients.push(nextClient);
+  return nextClient;
+}
+
+function buildClientSummaries(store) {
+  return [...store.clients]
+    .map((client) => {
+      const quotations = store.quotations.filter((quotation) =>
+        compareClientNames(quotation.clientName, client.name)
+      );
+      const invoices = store.invoices.filter((invoice) =>
+        compareClientNames(invoice.clientName, client.name)
+      );
+      const payments = store.payments.filter((payment) =>
+        compareClientNames(payment.clientName, client.name)
+      );
+      const lastActivity = [
+        client.updatedAt,
+        ...quotations.map((quotation) => quotation.date),
+        ...invoices.map((invoice) => invoice.date),
+        ...payments.map((payment) => payment.date),
+      ]
+        .filter(Boolean)
+        .sort((first, second) => new Date(second) - new Date(first))[0] || null;
+
+      return {
+        ...client,
+        quotationsCount: quotations.length,
+        invoicesCount: invoices.length,
+        paymentsCount: payments.length,
+        totalQuoted: quotations.reduce(
+          (sum, quotation) => sum + toNumber(quotation.total, 0),
+          0
+        ),
+        totalInvoiced: invoices.reduce(
+          (sum, invoice) => sum + toNumber(invoice.total, 0),
+          0
+        ),
+        totalPaid: payments.reduce(
+          (sum, payment) => sum + toNumber(payment.amount, 0),
+          0
+        ),
+        lastActivity,
+      };
+    })
+    .sort((first, second) => first.name.localeCompare(second.name));
 }
 
 function sanitizeQuotation(payload) {
@@ -190,6 +290,10 @@ async function listQuotations() {
 async function createQuotation(payload) {
   return mutateStore(async (store) => {
     const quotation = sanitizeQuotation(payload);
+    upsertClientRecord(store, {
+      clientName: quotation.clientName,
+      status: 'Active',
+    });
     store.quotations.push(quotation);
     return quotation;
   });
@@ -216,6 +320,10 @@ async function listInvoices() {
 async function createInvoice(payload) {
   return mutateStore(async (store) => {
     const invoice = sanitizeInvoice(payload);
+    upsertClientRecord(store, {
+      clientName: invoice.clientName,
+      status: 'Active',
+    });
     store.invoices.push(invoice);
     return invoice;
   });
@@ -303,8 +411,24 @@ async function updateDeliveryNote(id, payload) {
 
 async function getStoreSummary() {
   const store = await readStore();
+  const paymentsTotal = store.payments.reduce(
+    (sum, payment) => sum + toNumber(payment.amount, 0),
+    0
+  );
+  const documentTotal =
+    store.quotations.reduce(
+      (sum, quotation) => sum + toNumber(quotation.total, 0),
+      0
+    ) +
+    store.invoices.reduce(
+      (sum, invoice) => sum + toNumber(invoice.total, 0),
+      0
+    );
 
   return {
+    clients: {
+      count: store.clients.length,
+    },
     quotations: {
       count: store.quotations.length,
       totalAmount: store.quotations.reduce(
@@ -322,17 +446,100 @@ async function getStoreSummary() {
     deliveryNotes: {
       count: store.deliveryNotes.length,
     },
+    payments: {
+      count: store.payments.length,
+      totalAmount: paymentsTotal,
+    },
+    outstandingAmount: documentTotal - paymentsTotal,
   };
 }
 
+async function listClients() {
+  const store = await readStore();
+  return buildClientSummaries(store);
+}
+
+async function createClient(payload) {
+  return mutateStore(async (store) => {
+    const existingClient = store.clients.find((client) =>
+      compareClientNames(client.name, payload?.name || payload?.clientName)
+    );
+
+    if (existingClient) {
+      existingClient.contact =
+        String(payload?.contact || existingClient.contact || '').trim();
+      existingClient.status =
+        String(payload?.status || existingClient.status || 'Active').trim() ||
+        'Active';
+      existingClient.updatedAt = new Date().toISOString();
+
+      return buildClientSummaries(store).find(
+        (client) => client._id === existingClient._id
+      );
+    }
+
+    const client = buildClientRecord(payload);
+    store.clients.push(client);
+
+    return buildClientSummaries(store).find(
+      (clientSummary) => clientSummary._id === client._id
+    );
+  });
+}
+
+async function listPayments() {
+  const store = await readStore();
+
+  return sortByDateDesc(store.payments).map((payment) => ({
+    ...payment,
+  }));
+}
+
+async function createPayment(payload) {
+  return mutateStore(async (store) => {
+    const clientName = normalizeClientName(payload?.clientName);
+    const amount = toNumber(payload?.amount, NaN);
+
+    if (!clientName) {
+      throw createHttpError(400, 'Client name is required.');
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw createHttpError(400, 'Payment amount must be greater than zero.');
+    }
+
+    upsertClientRecord(store, {
+      clientName,
+      status: 'Active',
+    });
+
+    const payment = {
+      _id: randomUUID(),
+      clientName,
+      amount,
+      date: toIsoDate(payload?.date),
+      reference: String(payload?.reference || '').trim(),
+      notes: String(payload?.notes || '').trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    store.payments.push(payment);
+    return payment;
+  });
+}
+
 module.exports = {
+  createClient,
   createDeliveryNote,
   createInvoice,
+  createPayment,
   createQuotation,
   approveQuotation,
   getStoreSummary,
+  listClients,
   listDeliveryNotes,
   listInvoices,
+  listPayments,
   listQuotations,
   updateDeliveryNote,
 };

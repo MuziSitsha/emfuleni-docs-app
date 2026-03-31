@@ -1,13 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const {
+  createClient,
   approveQuotation,
   createDeliveryNote,
   createInvoice,
+  createPayment,
   createQuotation,
   getStoreSummary,
+  listClients,
   listDeliveryNotes,
   listInvoices,
+  listPayments,
   listQuotations,
   updateDeliveryNote,
 } = require('../lib/dataStore');
@@ -101,6 +105,42 @@ router.get('/summary', async (_req, res) => {
   try {
     const summary = await getStoreSummary();
     res.json(summary);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
+router.get('/clients', async (_req, res) => {
+  try {
+    const clients = await listClients();
+    res.json(clients);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
+router.post('/clients', async (req, res) => {
+  try {
+    const client = await createClient(req.body);
+    res.status(201).json(client);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
+router.get('/payments', async (_req, res) => {
+  try {
+    const payments = await listPayments();
+    res.json(payments);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
+router.post('/payments', async (req, res) => {
+  try {
+    const payment = await createPayment(req.body);
+    res.status(201).json(payment);
   } catch (err) {
     handleRouteError(res, err);
   }

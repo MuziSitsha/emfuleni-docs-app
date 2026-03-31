@@ -30,6 +30,11 @@ function Reports() {
 
   const rows = [
     {
+      label: 'Clients',
+      count: summary?.clients?.count ?? 0,
+      totalAmount: null,
+    },
+    {
       label: 'Invoices',
       count: summary?.invoices?.count ?? 0,
       totalAmount: summary?.invoices?.totalAmount ?? 0,
@@ -44,6 +49,11 @@ function Reports() {
       count: summary?.deliveryNotes?.count ?? 0,
       totalAmount: null,
     },
+    {
+      label: 'Payments',
+      count: summary?.payments?.count ?? 0,
+      totalAmount: summary?.payments?.totalAmount ?? 0,
+    },
   ];
 
   return (
@@ -54,7 +64,11 @@ function Reports() {
         <Card.Body>
           <Card.Title>Summary</Card.Title>
           <Card.Text>
-            Live totals from the backend for invoices, quotations, and delivery notes.
+            Live totals from the backend for clients, invoices, quotations, delivery notes, and payments.
+          </Card.Text>
+          <Card.Text className="mb-0">
+            Outstanding balance:{' '}
+            <strong>R {Number(summary?.outstandingAmount ?? 0).toFixed(2)}</strong>
           </Card.Text>
         </Card.Body>
       </Card>
