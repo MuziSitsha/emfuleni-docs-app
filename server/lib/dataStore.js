@@ -100,6 +100,33 @@ function buildDocumentFileName(prefix, date, clientName) {
   return `${prefix}_${safeDate}_${safeClientName}.pdf`;
 }
 
+function getDocumentPrefix(type) {
+  return type === 'quotation' ? 'Quotation' : 'Invoice';
+}
+
+function getDocumentCollection(store, type) {
+  if (type === 'quotation') {
+    return store.quotations;
+  }
+
+  if (type === 'invoice') {
+    return store.invoices;
+  }
+
+  throw createHttpError(400, 'Unsupported document type.');
+}
+
+function findDocumentByType(store, type, id) {
+  const collection = getDocumentCollection(store, type);
+  const document = collection.find((item) => item._id === id);
+
+  if (!document) {
+    throw createHttpError(404, `${getDocumentPrefix(type)} not found.`);
+  }
+
+  return document;
+}
+
 function normalizeClientName(value) {
   return String(value || '').trim();
 }
@@ -107,6 +134,12 @@ function normalizeClientName(value) {
 function compareClientNames(firstName, secondName) {
   return normalizeClientName(firstName).toLowerCase() ===
     normalizeClientName(secondName).toLowerCase();
+}
+
+function escapeCsvValue(value) {
+  const stringValue =
+    value === null || value === undefined ? '' : String(value);
+  return `"${stringValue.replace(/"/g, '""')}"`;
 }
 
 function buildClientRecord(payload = {}) {
@@ -275,6 +308,61 @@ function sanitizeInvoice(payload) {
   };
 }
 
+function sanitizeDocumentUpdate(type, currentDocument, payload) {
+  const clientName = String(
+    payload?.clientName || currentDocument.clientName || ''
+  ).trim();
+  const items = normalizeItems(payload?.items ?? currentDocument.items);
+  const total = toNumber(payload?.total, currentDocument.total);
+
+  if (!clientName) {
+    throw createHttpError(400, 'Please enter a client name.');
+  }
+
+  if (items.length === 0) {
+    throw createHttpError(
+      400,
+      'Add at least one item with a description and quantity.'
+    );
+  }
+
+  if (!Number.isFinite(total)) {
+    throw createHttpError(400, 'A valid total amount is required.');
+  }
+
+  const date = toIsoDate(payload?.date || currentDocument.date);
+
+  return {
+    ...currentDocument,
+    clientName,
+    invoiceNumber:
+      String(payload?.invoiceNumber || currentDocument.invoiceNumber || '').trim() ||
+      `${type === 'quotation' ? 'QTN' : 'INV'}-${Date.now()}`,
+    status:
+      type === 'quotation'
+        ? payload?.status || currentDocument.status || 'Pending'
+        : undefined,
+    date,
+    items,
+    vatApplied:
+      payload?.vatApplied !== undefined
+        ? Boolean(payload.vatApplied)
+        : Boolean(currentDocument.vatApplied),
+    vatRate:
+      payload?.vatRate !== undefined
+        ? toNumber(payload.vatRate, 15)
+        : toNumber(currentDocument.vatRate, 15),
+    discount:
+      payload?.discount !== undefined
+        ? toNumber(payload.discount, 0)
+        : toNumber(currentDocument.discount, 0),
+    total,
+    fileName:
+      String(payload?.fileName || currentDocument.fileName || '').trim() ||
+      buildDocumentFileName(getDocumentPrefix(type), date, clientName),
+  };
+}
+
 function populateDeliveryNote(note, quotation) {
   return {
     ...note,
@@ -296,6 +384,71 @@ async function createQuotation(payload) {
     });
     store.quotations.push(quotation);
     return quotation;
+  });
+}
+
+async function getDocument(type, id) {
+  const store = await readStore();
+  return { ...findDocumentByType(store, type, id) };
+}
+
+async function updateDocument(type, id, payload) {
+  return mutateStore(async (store) => {
+    const document = findDocumentByType(store, type, id);
+    const previousClientName = document.clientName;
+    const nextDocument = sanitizeDocumentUpdate(type, document, payload);
+
+    Object.assign(document, nextDocument);
+
+    upsertClientRecord(store, {
+      clientName: document.clientName,
+      status: 'Active',
+    });
+
+    if (type === 'quotation') {
+      store.deliveryNotes.forEach((note) => {
+        if (note.quotationId === id) {
+          note.clientName = document.clientName;
+          note.invoiceNumber = document.invoiceNumber;
+        }
+      });
+    }
+
+    if (
+      previousClientName &&
+      !compareClientNames(previousClientName, document.clientName)
+    ) {
+      const previousClient = store.clients.find((client) =>
+        compareClientNames(client.name, previousClientName)
+      );
+
+      if (previousClient) {
+        previousClient.updatedAt = new Date().toISOString();
+      }
+    }
+
+    return { ...document };
+  });
+}
+
+async function deleteDocument(type, id) {
+  return mutateStore(async (store) => {
+    const collection = getDocumentCollection(store, type);
+    const index = collection.findIndex((item) => item._id === id);
+
+    if (index === -1) {
+      throw createHttpError(404, `${getDocumentPrefix(type)} not found.`);
+    }
+
+    const [deletedDocument] = collection.splice(index, 1);
+
+    if (type === 'quotation') {
+      store.deliveryNotes = store.deliveryNotes.filter(
+        (note) => note.quotationId !== deletedDocument._id
+      );
+    }
+
+    return { ...deletedDocument };
   });
 }
 
@@ -409,6 +562,19 @@ async function updateDeliveryNote(id, payload) {
   });
 }
 
+async function deleteDeliveryNote(id) {
+  return mutateStore(async (store) => {
+    const index = store.deliveryNotes.findIndex((item) => item._id === id);
+
+    if (index === -1) {
+      throw createHttpError(404, 'Delivery note not found.');
+    }
+
+    const [deletedNote] = store.deliveryNotes.splice(index, 1);
+    return { ...deletedNote };
+  });
+}
+
 async function getStoreSummary() {
   const store = await readStore();
   const paymentsTotal = store.payments.reduce(
@@ -487,6 +653,107 @@ async function createClient(payload) {
   });
 }
 
+async function updateClient(id, payload) {
+  return mutateStore(async (store) => {
+    const client = store.clients.find((item) => item._id === id);
+
+    if (!client) {
+      throw createHttpError(404, 'Client not found.');
+    }
+
+    const nextName = normalizeClientName(payload?.name || client.name);
+
+    if (!nextName) {
+      throw createHttpError(400, 'Client name is required.');
+    }
+
+    const duplicateClient = store.clients.find(
+      (item) => item._id !== id && compareClientNames(item.name, nextName)
+    );
+
+    if (duplicateClient) {
+      throw createHttpError(409, 'A client with that name already exists.');
+    }
+
+    const previousName = client.name;
+    client.name = nextName;
+    client.contact = String(payload?.contact || '').trim();
+    client.status =
+      String(payload?.status || client.status || 'Active').trim() || 'Active';
+    client.updatedAt = new Date().toISOString();
+
+    if (!compareClientNames(previousName, nextName)) {
+      store.quotations.forEach((quotation) => {
+        if (compareClientNames(quotation.clientName, previousName)) {
+          quotation.clientName = nextName;
+          quotation.fileName = buildDocumentFileName(
+            'Quotation',
+            quotation.date,
+            nextName
+          );
+        }
+      });
+
+      store.invoices.forEach((invoice) => {
+        if (compareClientNames(invoice.clientName, previousName)) {
+          invoice.clientName = nextName;
+          invoice.fileName = buildDocumentFileName('Invoice', invoice.date, nextName);
+        }
+      });
+
+      store.deliveryNotes.forEach((note) => {
+        if (compareClientNames(note.clientName, previousName)) {
+          note.clientName = nextName;
+        }
+      });
+
+      store.payments.forEach((payment) => {
+        if (compareClientNames(payment.clientName, previousName)) {
+          payment.clientName = nextName;
+        }
+      });
+    }
+
+    return buildClientSummaries(store).find(
+      (clientSummary) => clientSummary._id === client._id
+    );
+  });
+}
+
+async function deleteClient(id) {
+  return mutateStore(async (store) => {
+    const client = store.clients.find((item) => item._id === id);
+
+    if (!client) {
+      throw createHttpError(404, 'Client not found.');
+    }
+
+    const hasLinkedRecords =
+      store.quotations.some((quotation) =>
+        compareClientNames(quotation.clientName, client.name)
+      ) ||
+      store.invoices.some((invoice) =>
+        compareClientNames(invoice.clientName, client.name)
+      ) ||
+      store.deliveryNotes.some((note) =>
+        compareClientNames(note.clientName, client.name)
+      ) ||
+      store.payments.some((payment) =>
+        compareClientNames(payment.clientName, client.name)
+      );
+
+    if (hasLinkedRecords) {
+      throw createHttpError(
+        409,
+        'Cannot delete a client that still has saved documents or payments.'
+      );
+    }
+
+    store.clients = store.clients.filter((item) => item._id !== id);
+    return { ...client };
+  });
+}
+
 async function listPayments() {
   const store = await readStore();
 
@@ -528,6 +795,178 @@ async function createPayment(payload) {
   });
 }
 
+async function updatePayment(id, payload) {
+  return mutateStore(async (store) => {
+    const payment = store.payments.find((item) => item._id === id);
+
+    if (!payment) {
+      throw createHttpError(404, 'Payment not found.');
+    }
+
+    const clientName = normalizeClientName(payload?.clientName || payment.clientName);
+    const amount = toNumber(
+      payload?.amount !== undefined ? payload.amount : payment.amount,
+      NaN
+    );
+
+    if (!clientName) {
+      throw createHttpError(400, 'Client name is required.');
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw createHttpError(400, 'Payment amount must be greater than zero.');
+    }
+
+    upsertClientRecord(store, {
+      clientName,
+      status: 'Active',
+    });
+
+    payment.clientName = clientName;
+    payment.amount = amount;
+    payment.date = toIsoDate(payload?.date || payment.date);
+    payment.reference = String(payload?.reference || '').trim();
+    payment.notes = String(payload?.notes || '').trim();
+
+    return { ...payment };
+  });
+}
+
+async function deletePayment(id) {
+  return mutateStore(async (store) => {
+    const index = store.payments.findIndex((item) => item._id === id);
+
+    if (index === -1) {
+      throw createHttpError(404, 'Payment not found.');
+    }
+
+    const [deletedPayment] = store.payments.splice(index, 1);
+    return { ...deletedPayment };
+  });
+}
+
+async function exportStoreAsJson() {
+  return readStore();
+}
+
+async function exportStoreAsCsv() {
+  const store = await readStore();
+  const rows = [
+    ...store.clients.map((client) => ({
+      entityType: 'client',
+      id: client._id,
+      name: client.name,
+      clientName: client.name,
+      contact: client.contact,
+      status: client.status,
+      date: client.updatedAt || client.createdAt,
+      reference: '',
+      amount: '',
+      total: '',
+      fileName: '',
+      itemCount: '',
+      items: '',
+      notes: '',
+      relatedId: '',
+    })),
+    ...store.quotations.map((quotation) => ({
+      entityType: 'quotation',
+      id: quotation._id,
+      name: '',
+      clientName: quotation.clientName,
+      contact: '',
+      status: quotation.status,
+      date: quotation.date,
+      reference: quotation.invoiceNumber,
+      amount: '',
+      total: quotation.total,
+      fileName: quotation.fileName,
+      itemCount: quotation.items.length,
+      items: JSON.stringify(quotation.items),
+      notes: '',
+      relatedId: '',
+    })),
+    ...store.invoices.map((invoice) => ({
+      entityType: 'invoice',
+      id: invoice._id,
+      name: '',
+      clientName: invoice.clientName,
+      contact: '',
+      status: 'Issued',
+      date: invoice.date,
+      reference: invoice.invoiceNumber,
+      amount: '',
+      total: invoice.total,
+      fileName: invoice.fileName,
+      itemCount: invoice.items.length,
+      items: JSON.stringify(invoice.items),
+      notes: '',
+      relatedId: '',
+    })),
+    ...store.deliveryNotes.map((note) => ({
+      entityType: 'delivery-note',
+      id: note._id,
+      name: '',
+      clientName: note.clientName,
+      contact: '',
+      status: 'Approved Delivery',
+      date: note.date,
+      reference: note.invoiceNumber,
+      amount: '',
+      total: '',
+      fileName: '',
+      itemCount: note.items.length,
+      items: JSON.stringify(note.items),
+      notes: note.notes,
+      relatedId: note.quotationId,
+    })),
+    ...store.payments.map((payment) => ({
+      entityType: 'payment',
+      id: payment._id,
+      name: '',
+      clientName: payment.clientName,
+      contact: '',
+      status: '',
+      date: payment.date,
+      reference: payment.reference,
+      amount: payment.amount,
+      total: '',
+      fileName: '',
+      itemCount: '',
+      items: '',
+      notes: payment.notes,
+      relatedId: '',
+    })),
+  ];
+
+  const headers = [
+    'entityType',
+    'id',
+    'name',
+    'clientName',
+    'contact',
+    'status',
+    'date',
+    'reference',
+    'amount',
+    'total',
+    'fileName',
+    'itemCount',
+    'items',
+    'notes',
+    'relatedId',
+  ];
+
+  const csvLines = [
+    headers.join(','),
+    ...rows.map((row) =>
+      headers.map((header) => escapeCsvValue(row[header])).join(',')
+    ),
+  ];
+
+  return csvLines.join('\n');
+}
+
 module.exports = {
   createClient,
   createDeliveryNote,
@@ -535,11 +974,21 @@ module.exports = {
   createPayment,
   createQuotation,
   approveQuotation,
+  deleteClient,
+  deleteDeliveryNote,
+  deleteDocument,
+  deletePayment,
+  exportStoreAsCsv,
+  exportStoreAsJson,
+  getDocument,
   getStoreSummary,
   listClients,
   listDeliveryNotes,
   listInvoices,
   listPayments,
   listQuotations,
+  updateClient,
   updateDeliveryNote,
+  updateDocument,
+  updatePayment,
 };

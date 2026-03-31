@@ -35,6 +35,7 @@ function DeliveryNotes() {
   const [message, setMessage] = useState('');
   const [editingId, setEditingId] = useState('');
   const [savingId, setSavingId] = useState('');
+  const [deletingId, setDeletingId] = useState('');
   const [drafts, setDrafts] = useState({});
 
   const syncDrafts = (items) => {
@@ -139,6 +140,37 @@ function DeliveryNotes() {
     }
   };
 
+  const deleteDeliveryNote = async (noteId) => {
+    const confirmed = window.confirm(
+      'Delete this delivery note? This cannot be undone.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingId(noteId);
+      setError('');
+      setMessage('');
+      await api.delete(`/delivery-notes/${noteId}`);
+      const nextNotes = notes.filter((note) => note._id !== noteId);
+      setNotes(nextNotes);
+      syncDrafts(nextNotes);
+      if (editingId === noteId) {
+        setEditingId('');
+      }
+      setMessage('Delivery note deleted successfully.');
+    } catch (deleteError) {
+      const errorMessage =
+        deleteError.response?.data?.error ||
+        'Unable to delete the delivery note right now.';
+      setError(errorMessage);
+    } finally {
+      setDeletingId('');
+    }
+  };
+
   return (
     <Container className="mt-4 delivery-notes-page">
       <div className="delivery-notes-header">
@@ -181,6 +213,13 @@ function DeliveryNotes() {
               </Button>
               <Button variant="outline-secondary" onClick={() => window.print()}>
                 Print Note
+              </Button>
+              <Button
+                variant="outline-danger"
+                onClick={() => deleteDeliveryNote(note._id)}
+                disabled={deletingId === note._id}
+              >
+                {deletingId === note._id ? 'Deleting...' : 'Delete Note'}
               </Button>
             </div>
 

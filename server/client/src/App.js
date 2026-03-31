@@ -8,6 +8,7 @@ import Clients from './Clients';
 import Reports from './Reports';
 import RecentDocuments from './RecentDocuments'; // now serves as History page
 import DeliveryNotes from './DeliveryNotes';
+import DocumentDetail from './DocumentDetail';
 import emfuleniLogo from './emfuleni-logo.svg';
 
 function App() {
@@ -46,6 +47,7 @@ function App() {
           <Route path="/payments" element={<PaymentRecorder />} />
           <Route path="/delivery-notes" element={<DeliveryNotes />} />
           <Route path="/history" element={<RecentDocuments />} />
+          <Route path="/history/:type/:id" element={<DocumentDetail />} />
         </Routes>
       </Container>
     </Router>

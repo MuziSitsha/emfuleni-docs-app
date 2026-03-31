@@ -7,6 +7,7 @@ import {
   Spinner,
   Table,
 } from 'react-bootstrap';
+import { Link } from 'react-router-dom';
 import api from './api';
 
 function formatDocument(document, type) {
@@ -99,8 +100,31 @@ function RecentDocuments() {
     setDeliveryNotesByQuotationId(notesMap);
   };
 
-  const revertDocument = (document) => {
-    alert(`Reverting back to: ${document.file}`);
+  const deleteDocument = async (document) => {
+    const confirmed = window.confirm(
+      `Delete ${document.type.toLowerCase()} ${document.invoiceNumber}?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setProcessingId(document.id);
+      setMessage('');
+      setError('');
+
+      await api.delete(`/documents/${document.type.toLowerCase()}/${document.id}`);
+      await refreshDocuments();
+      setMessage(`${document.type} deleted successfully.`);
+    } catch (deleteError) {
+      const errorMessage =
+        deleteError.response?.data?.error ||
+        'Unable to delete this document right now.';
+      setError(errorMessage);
+    } finally {
+      setProcessingId('');
+    }
   };
 
   const approveQuotation = async (document) => {
@@ -211,8 +235,12 @@ function RecentDocuments() {
               <td>{document.date}</td>
               <td>R {Number(document.total).toFixed(2)}</td>
               <td className="d-flex gap-2 flex-wrap">
-                <Button variant="info" onClick={() => revertDocument(document)}>
-                  Revert
+                <Button
+                  as={Link}
+                  to={`/history/${document.type.toLowerCase()}/${document.id}`}
+                  variant="info"
+                >
+                  Open
                 </Button>
                 {document.type === 'Quotation' && document.status !== 'Approved' && (
                   <Button
@@ -240,6 +268,13 @@ function RecentDocuments() {
                         : 'Create Delivery Note'}
                   </Button>
                 )}
+                <Button
+                  variant="outline-danger"
+                  onClick={() => deleteDocument(document)}
+                  disabled={processingId === document.id}
+                >
+                  Delete
+                </Button>
               </td>
             </tr>
           ))}

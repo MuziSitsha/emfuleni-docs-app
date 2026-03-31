@@ -7,13 +7,23 @@ const {
   createInvoice,
   createPayment,
   createQuotation,
+  deleteClient,
+  deleteDeliveryNote,
+  deleteDocument,
+  deletePayment,
+  exportStoreAsCsv,
+  exportStoreAsJson,
+  getDocument,
   getStoreSummary,
   listClients,
   listDeliveryNotes,
   listInvoices,
   listPayments,
   listQuotations,
+  updateClient,
   updateDeliveryNote,
+  updateDocument,
+  updatePayment,
 } = require('../lib/dataStore');
 
 function handleRouteError(res, error) {
@@ -101,6 +111,15 @@ router.patch('/delivery-notes/:id', async (req, res) => {
   }
 });
 
+router.delete('/delivery-notes/:id', async (req, res) => {
+  try {
+    const note = await deleteDeliveryNote(req.params.id);
+    res.json(note);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
 router.get('/summary', async (_req, res) => {
   try {
     const summary = await getStoreSummary();
@@ -128,6 +147,24 @@ router.post('/clients', async (req, res) => {
   }
 });
 
+router.patch('/clients/:id', async (req, res) => {
+  try {
+    const client = await updateClient(req.params.id, req.body);
+    res.json(client);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
+router.delete('/clients/:id', async (req, res) => {
+  try {
+    const client = await deleteClient(req.params.id);
+    res.json(client);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
 router.get('/payments', async (_req, res) => {
   try {
     const payments = await listPayments();
@@ -141,6 +178,86 @@ router.post('/payments', async (req, res) => {
   try {
     const payment = await createPayment(req.body);
     res.status(201).json(payment);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
+router.patch('/payments/:id', async (req, res) => {
+  try {
+    const payment = await updatePayment(req.params.id, req.body);
+    res.json(payment);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
+router.delete('/payments/:id', async (req, res) => {
+  try {
+    const payment = await deletePayment(req.params.id);
+    res.json(payment);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
+router.get('/documents/:type/:id', async (req, res) => {
+  try {
+    const document = await getDocument(req.params.type, req.params.id);
+    res.json(document);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
+router.patch('/documents/:type/:id', async (req, res) => {
+  try {
+    const document = await updateDocument(
+      req.params.type,
+      req.params.id,
+      req.body
+    );
+    res.json(document);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
+router.delete('/documents/:type/:id', async (req, res) => {
+  try {
+    const document = await deleteDocument(req.params.type, req.params.id);
+    res.json(document);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
+router.get('/export/json', async (_req, res) => {
+  try {
+    const data = await exportStoreAsJson();
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="emfuleni-backup-${new Date()
+        .toISOString()
+        .slice(0, 10)}.json"`
+    );
+    res.json(data);
+  } catch (err) {
+    handleRouteError(res, err);
+  }
+});
+
+router.get('/export/csv', async (_req, res) => {
+  try {
+    const csv = await exportStoreAsCsv();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="emfuleni-backup-${new Date()
+        .toISOString()
+        .slice(0, 10)}.csv"`
+    );
+    res.send(csv);
   } catch (err) {
     handleRouteError(res, err);
   }

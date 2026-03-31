@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Card, Container, Spinner, Table } from 'react-bootstrap';
+import { Alert, Button, Card, Container, Spinner, Table } from 'react-bootstrap';
 import api from './api';
 
 function Reports() {
@@ -27,6 +27,10 @@ function Reports() {
 
     fetchSummary();
   }, []);
+
+  const downloadExport = (format) => {
+    window.open(`/api/export/${format}`, '_blank');
+  };
 
   const rows = [
     {
@@ -70,6 +74,14 @@ function Reports() {
             Outstanding balance:{' '}
             <strong>R {Number(summary?.outstandingAmount ?? 0).toFixed(2)}</strong>
           </Card.Text>
+          <div className="d-flex gap-2 mt-3">
+            <Button variant="outline-primary" onClick={() => downloadExport('json')}>
+              Backup JSON
+            </Button>
+            <Button variant="outline-secondary" onClick={() => downloadExport('csv')}>
+              Export CSV
+            </Button>
+          </div>
         </Card.Body>
       </Card>
 

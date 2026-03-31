@@ -15,6 +15,9 @@ function PaymentRecorder() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [editingId, setEditingId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState('');
   const [form, setForm] = useState({
     clientName: '',
     amount: '',
@@ -56,32 +59,89 @@ function PaymentRecorder() {
     }));
   };
 
+  const resetForm = () => {
+    setEditingId('');
+    setForm({
+      clientName: '',
+      amount: '',
+      date: new Date().toISOString().split('T')[0],
+      reference: '',
+      notes: '',
+    });
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
 
     try {
+      setSaving(true);
       setError('');
       setMessage('');
 
-      await api.post('/payments', {
+      const payload = {
         ...form,
         amount: Number(form.amount),
-      });
+      };
 
-      setMessage(`Payment saved for ${form.clientName.trim()}.`);
-      setForm({
-        clientName: '',
-        amount: '',
-        date: new Date().toISOString().split('T')[0],
-        reference: '',
-        notes: '',
-      });
+      if (editingId) {
+        await api.patch(`/payments/${editingId}`, payload);
+        setMessage(`Payment updated for ${form.clientName.trim()}.`);
+      } else {
+        await api.post('/payments', payload);
+        setMessage(`Payment saved for ${form.clientName.trim()}.`);
+      }
+
+      resetForm();
       await loadPayments();
     } catch (saveError) {
       setError(
         saveError.response?.data?.error ||
           'Unable to save the payment right now.'
       );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startEditing = (payment) => {
+    setEditingId(payment._id);
+    setError('');
+    setMessage('');
+    setForm({
+      clientName: payment.clientName,
+      amount: String(payment.amount),
+      date: new Date(payment.date).toISOString().split('T')[0],
+      reference: payment.reference || '',
+      notes: payment.notes || '',
+    });
+  };
+
+  const deletePayment = async (payment) => {
+    const confirmed = window.confirm(
+      `Delete payment of R ${Number(payment.amount).toFixed(2)} for ${payment.clientName}?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingId(payment._id);
+      setError('');
+      setMessage('');
+      await api.delete(`/payments/${payment._id}`);
+      if (editingId === payment._id) {
+        resetForm();
+      }
+      setMessage(`Payment deleted for ${payment.clientName}.`);
+      await loadPayments();
+    } catch (deleteError) {
+      setError(
+        deleteError.response?.data?.error ||
+          'Unable to delete the payment right now.'
+      );
+    } finally {
+      setDeletingId('');
     }
   };
 
@@ -158,9 +218,19 @@ function PaymentRecorder() {
           />
         </Form.Group>
 
-        <Button variant="success" className="mt-3" type="submit">
-          Record Payment
+        <Button variant="success" className="mt-3" type="submit" disabled={saving}>
+          {saving ? 'Saving...' : editingId ? 'Update Payment' : 'Record Payment'}
         </Button>
+        {editingId && (
+          <Button
+            variant="outline-secondary"
+            className="mt-3 ms-2"
+            type="button"
+            onClick={resetForm}
+          >
+            Cancel Editing
+          </Button>
+        )}
       </Form>
 
       <Table striped bordered hover className="mt-4">
@@ -171,12 +241,13 @@ function PaymentRecorder() {
             <th>Amount</th>
             <th>Reference</th>
             <th>Notes</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
           {!loading && payments.length === 0 && (
             <tr>
-              <td colSpan="5" className="text-center">
+              <td colSpan="6" className="text-center">
                 No payments recorded yet.
               </td>
             </tr>
@@ -188,6 +259,23 @@ function PaymentRecorder() {
               <td>R {Number(payment.amount).toFixed(2)}</td>
               <td>{payment.reference || 'Not provided'}</td>
               <td>{payment.notes || 'No notes'}</td>
+              <td className="d-flex gap-2 flex-wrap">
+                <Button
+                  variant="outline-primary"
+                  type="button"
+                  onClick={() => startEditing(payment)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="outline-danger"
+                  type="button"
+                  onClick={() => deletePayment(payment)}
+                  disabled={deletingId === payment._id}
+                >
+                  {deletingId === payment._id ? 'Deleting...' : 'Delete'}
+                </Button>
+              </td>
             </tr>
           ))}
         </tbody>
