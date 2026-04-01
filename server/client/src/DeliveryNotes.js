@@ -24,6 +24,11 @@ function formatDate(value) {
 }
 
 function buildSubject(note) {
+  const quotationSubjectLine = note.quotationId?.subjectLine?.trim();
+  if (quotationSubjectLine) {
+    return quotationSubjectLine;
+  }
+
   const firstItem = note.items?.[0]?.description;
   return firstItem ? `Delivery of ${firstItem}` : 'Approved quotation delivery';
 }

@@ -11,6 +11,10 @@ function documentTypeLabel(type) {
   return type === 'quotation' ? 'Quotation' : 'Invoice';
 }
 
+function buildDisplaySubject(document) {
+  return document.type === 'quotation' ? document.subjectLine || '' : '';
+}
+
 function buildPrintMarkup(document, totals) {
   const rows = document.items
     .map(
@@ -55,6 +59,11 @@ function buildPrintMarkup(document, totals) {
             <p><strong>Reference:</strong> ${document.invoiceNumber}</p>
             <p><strong>Date:</strong> ${document.date}</p>
             <p><strong>Client:</strong> ${document.clientName}</p>
+            ${
+              buildDisplaySubject(document)
+                ? `<p><strong>Subject:</strong> ${buildDisplaySubject(document)}</p>`
+                : ''
+            }
           </div>
         </section>
         <table>
@@ -101,6 +110,7 @@ function DocumentDetail() {
         setForm({
           type,
           clientName: document.clientName || '',
+          subjectLine: document.subjectLine || '',
           invoiceNumber: document.invoiceNumber || '',
           status: document.status || 'Pending',
           date: formatDateInput(document.date),
@@ -210,6 +220,7 @@ function DocumentDetail() {
 
       const payload = {
         clientName: form.clientName.trim(),
+        subjectLine: type === 'quotation' ? form.subjectLine.trim() : '',
         invoiceNumber: form.invoiceNumber,
         status: form.status,
         date: form.date,
@@ -227,6 +238,7 @@ function DocumentDetail() {
       setForm((currentForm) => ({
         ...currentForm,
         clientName: document.clientName,
+        subjectLine: document.subjectLine || '',
         invoiceNumber: document.invoiceNumber,
         status: document.status || currentForm.status,
         date: formatDateInput(document.date),
@@ -364,6 +376,19 @@ function DocumentDetail() {
               />
             </Form.Group>
           </div>
+          {type === 'quotation' && (
+            <div className="col-md-4">
+              <Form.Group>
+                <Form.Label>Subject Line</Form.Label>
+                <Form.Control
+                  type="text"
+                  placeholder="For example Grade 1"
+                  value={form.subjectLine}
+                  onChange={(event) => handleChange('subjectLine', event.target.value)}
+                />
+              </Form.Group>
+            </div>
+          )}
           {type === 'quotation' && (
             <div className="col-md-2">
               <Form.Group>

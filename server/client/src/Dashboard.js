@@ -24,6 +24,7 @@ function formatDisplayDate(value) {
 function Dashboard() {
   const [docType, setDocType] = useState('Invoice');
   const [clientName, setClientName] = useState('');
+  const [subjectLine, setSubjectLine] = useState('');
   const [documentDate, setDocumentDate] = useState(
     new Date().toISOString().split('T')[0]
   );
@@ -50,6 +51,7 @@ function Dashboard() {
 
   const resetForm = () => {
     setClientName('');
+    setSubjectLine('');
     setDocumentDate(new Date().toISOString().split('T')[0]);
     setItems([{ description: '', quantity: 1, price: 0 }]);
     setApplyVat(false);
@@ -93,6 +95,7 @@ function Dashboard() {
     return {
       type: docType,
       clientName: trimmedClientName,
+      subjectLine: docType === 'Quotation' ? subjectLine.trim() : '',
       date: documentDate,
       invoiceNumber: `${invoicePrefix}-${Date.now()}`,
       items: cleanedItems,
@@ -164,12 +167,15 @@ function Dashboard() {
             .meta {
               text-align: right;
             }
-            .section {
-              margin-bottom: 24px;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
+             .section {
+               margin-bottom: 24px;
+             }
+             .subject-line {
+               margin-top: 8px;
+             }
+             table {
+               width: 100%;
+               border-collapse: collapse;
               margin-bottom: 24px;
             }
             th,
@@ -212,13 +218,18 @@ function Dashboard() {
               <p>${COMPANY_DETAILS.registration}</p>
               ${COMPANY_DETAILS.location.map((line) => `<p>${line}</p>`).join('')}
             </div>
-            <div class="meta">
-              <div class="doc-title">${document.type.toUpperCase()}</div>
-              <p><strong>Reference:</strong> ${document.invoiceNumber}</p>
-              <p><strong>Date:</strong> ${formatDisplayDate(document.date)}</p>
-              <p><strong>Client:</strong> ${document.clientName}</p>
-            </div>
-          </section>
+             <div class="meta">
+               <div class="doc-title">${document.type.toUpperCase()}</div>
+               <p><strong>Reference:</strong> ${document.invoiceNumber}</p>
+               <p><strong>Date:</strong> ${formatDisplayDate(document.date)}</p>
+               <p><strong>Client:</strong> ${document.clientName}</p>
+               ${
+                 document.subjectLine
+                   ? `<p class="subject-line"><strong>Subject:</strong> ${document.subjectLine}</p>`
+                   : ''
+               }
+             </div>
+           </section>
 
           <section class="section">
             <table>
@@ -297,6 +308,7 @@ function Dashboard() {
 
     const payload = {
       clientName: draftDocument.clientName,
+      subjectLine: draftDocument.subjectLine,
       invoiceNumber: draftDocument.invoiceNumber,
       status: docType === 'Quotation' ? 'Pending' : undefined,
       date: draftDocument.date,
@@ -369,6 +381,18 @@ function Dashboard() {
             onChange={(event) => setDocumentDate(event.target.value)}
           />
         </Form.Group>
+
+        {docType === 'Quotation' && (
+          <Form.Group className="mb-3">
+            <Form.Label>Subject Line</Form.Label>
+            <Form.Control
+              type="text"
+              placeholder="Enter subject line, for example Grade 1"
+              value={subjectLine}
+              onChange={(event) => setSubjectLine(event.target.value)}
+            />
+          </Form.Group>
+        )}
 
         <Table striped bordered hover>
           <thead>

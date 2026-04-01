@@ -231,6 +231,7 @@ function buildClientSummaries(store) {
 
 function sanitizeQuotation(payload) {
   const clientName = String(payload?.clientName || '').trim();
+  const subjectLine = String(payload?.subjectLine || '').trim();
   const items = normalizeItems(payload?.items);
   const total = toNumber(payload?.total, NaN);
 
@@ -254,6 +255,7 @@ function sanitizeQuotation(payload) {
   return {
     _id: randomUUID(),
     clientName,
+    subjectLine,
     invoiceNumber:
       String(payload?.invoiceNumber || '').trim() || `QTN-${Date.now()}`,
     status: payload?.status === 'Approved' ? 'Approved' : 'Pending',
@@ -335,6 +337,14 @@ function sanitizeDocumentUpdate(type, currentDocument, payload) {
   return {
     ...currentDocument,
     clientName,
+    subjectLine:
+      type === 'quotation'
+        ? String(
+            payload?.subjectLine !== undefined
+              ? payload.subjectLine
+              : currentDocument.subjectLine || ''
+          ).trim()
+        : undefined,
     invoiceNumber:
       String(payload?.invoiceNumber || currentDocument.invoiceNumber || '').trim() ||
       `${type === 'quotation' ? 'QTN' : 'INV'}-${Date.now()}`,
