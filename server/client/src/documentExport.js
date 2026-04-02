@@ -1,57 +1,54 @@
 import html2pdf from 'html2pdf.js/dist/html2pdf.bundle.min.js';
 
+function parseMarkup(markup) {
+  const parser = new DOMParser();
+  return parser.parseFromString(markup, 'text/html');
+}
+
 function wait(ms) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
 }
 
-function loadMarkupIntoIframe(markup) {
-  return new Promise((resolve, reject) => {
-    const iframe = document.createElement('iframe');
+async function waitForRender() {
+  await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+  await new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+  await wait(250);
+}
 
-    iframe.style.position = 'fixed';
-    iframe.style.right = '-200vw';
-    iframe.style.top = '0';
-    iframe.style.width = '210mm';
-    iframe.style.height = '297mm';
-    iframe.style.border = '0';
-    iframe.style.background = '#ffffff';
+function buildExportContainer(markup) {
+  const parsedDocument = parseMarkup(markup);
+  const exportRoot = document.createElement('div');
+  const styles = Array.from(parsedDocument.querySelectorAll('style'))
+    .map((node) => node.textContent || '')
+    .join('\n');
 
-    const cleanup = () => {
-      iframe.onload = null;
-      iframe.onerror = null;
-    };
+  exportRoot.setAttribute('data-pdf-export-root', 'true');
+  exportRoot.style.position = 'fixed';
+  exportRoot.style.left = '0';
+  exportRoot.style.top = '0';
+  exportRoot.style.width = '210mm';
+  exportRoot.style.minHeight = '297mm';
+  exportRoot.style.padding = '0';
+  exportRoot.style.margin = '0';
+  exportRoot.style.background = '#ffffff';
+  exportRoot.style.opacity = '0.01';
+  exportRoot.style.pointerEvents = 'none';
+  exportRoot.style.zIndex = '2147483647';
+  exportRoot.style.overflow = 'hidden';
 
-    iframe.onload = async () => {
-      try {
-        const frameDocument = iframe.contentDocument;
+  if (styles) {
+    const styleTag = document.createElement('style');
+    styleTag.textContent = styles;
+    exportRoot.appendChild(styleTag);
+  }
 
-        if (!frameDocument) {
-          throw new Error('Unable to access iframe document.');
-        }
+  const content = document.createElement('div');
+  content.innerHTML = parsedDocument.body?.innerHTML || markup;
+  exportRoot.appendChild(content);
 
-        if (frameDocument.fonts?.ready) {
-          await frameDocument.fonts.ready;
-        }
-
-        await wait(300);
-        cleanup();
-        resolve(iframe);
-      } catch (error) {
-        cleanup();
-        reject(error);
-      }
-    };
-
-    iframe.onerror = () => {
-      cleanup();
-      reject(new Error('Unable to load PDF export frame.'));
-    };
-
-    document.body.appendChild(iframe);
-    iframe.srcdoc = markup;
-  });
+  return exportRoot;
 }
 
 export function openPrintWindow(markup, onBlocked) {
@@ -75,14 +72,15 @@ export function openPrintWindow(markup, onBlocked) {
 }
 
 export async function downloadPdfFromMarkup(markup, fileName) {
-  const iframe = await loadMarkupIntoIframe(markup);
+  const exportContainer = buildExportContainer(markup);
+  document.body.appendChild(exportContainer);
 
   try {
-    const frameDocument = iframe.contentDocument;
-
-    if (!frameDocument?.body) {
-      throw new Error('Unable to prepare document for PDF export.');
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
     }
+
+    await waitForRender();
 
     await html2pdf()
       .set({
@@ -100,9 +98,9 @@ export async function downloadPdfFromMarkup(markup, fileName) {
           orientation: 'portrait',
         },
       })
-      .from(frameDocument.body)
+      .from(exportContainer)
       .save();
   } finally {
-    document.body.removeChild(iframe);
+    document.body.removeChild(exportContainer);
   }
 }
