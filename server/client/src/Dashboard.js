@@ -69,6 +69,7 @@ function Dashboard() {
 
   const buildDraftDocument = () => {
     const trimmedClientName = clientName.trim();
+    const trimmedSubjectLine = subjectLine.trim();
     const cleanedItems = items
       .map((item) => ({
         description: item.description.trim(),
@@ -95,7 +96,7 @@ function Dashboard() {
     return {
       type: docType,
       clientName: trimmedClientName,
-      subjectLine: docType === 'Quotation' ? subjectLine.trim() : '',
+      subjectLine: trimmedSubjectLine,
       date: documentDate,
       invoiceNumber: `${invoicePrefix}-${Date.now()}`,
       items: cleanedItems,
@@ -292,6 +293,33 @@ function Dashboard() {
     });
   };
 
+  const downloadDocumentCopy = () => {
+    const draftDocument = buildDraftDocument();
+
+    if (!draftDocument) {
+      return;
+    }
+
+    const safeClientName = draftDocument.clientName.replace(/\s+/g, '_');
+    const fileName = `${draftDocument.type}_${draftDocument.date}_${safeClientName}.html`;
+    const blob = new Blob([buildPrintMarkup(draftDocument)], {
+      type: 'text/html;charset=utf-8',
+    });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
+
+    setSaveState({
+      status: 'success',
+      message: `${draftDocument.type} downloaded to this PC as an HTML file.`,
+    });
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setSaveState({ status: 'idle', message: '' });
@@ -382,17 +410,15 @@ function Dashboard() {
           />
         </Form.Group>
 
-        {docType === 'Quotation' && (
-          <Form.Group className="mb-3">
-            <Form.Label>Subject Line</Form.Label>
-            <Form.Control
-              type="text"
-              placeholder="Enter subject line, for example Grade 1"
-              value={subjectLine}
-              onChange={(event) => setSubjectLine(event.target.value)}
-            />
-          </Form.Group>
-        )}
+        <Form.Group className="mb-3">
+          <Form.Label>Subject Line</Form.Label>
+          <Form.Control
+            type="text"
+            placeholder="Enter subject line, for example Grade 1"
+            value={subjectLine}
+            onChange={(event) => setSubjectLine(event.target.value)}
+          />
+        </Form.Group>
 
         <Table striped bordered hover>
           <thead>
@@ -499,20 +525,18 @@ function Dashboard() {
           variant="secondary"
           className="mt-3"
           type="button"
+          onClick={downloadDocumentCopy}
+        >
+          Save to This PC
+        </Button>{' '}
+        <Button
+          variant="info"
+          className="mt-3"
+          type="button"
           onClick={() => openPrintableDocument('pdf')}
         >
-          Generate PDF
-        </Button>{' '}
-        {docType === 'Quotation' && (
-          <Button
-            variant="info"
-            className="mt-3"
-            type="button"
-            onClick={() => openPrintableDocument('print')}
-          >
-            Print Quotation
-          </Button>
-        )}
+          Print / Save as PDF
+        </Button>
       </Form>
     </Container>
   );

@@ -12,7 +12,7 @@ function documentTypeLabel(type) {
 }
 
 function buildDisplaySubject(document) {
-  return document.type === 'quotation' ? document.subjectLine || '' : '';
+  return String(document.subjectLine || '').trim();
 }
 
 function buildPrintMarkup(document, totals) {
@@ -220,7 +220,7 @@ function DocumentDetail() {
 
       const payload = {
         clientName: form.clientName.trim(),
-        subjectLine: type === 'quotation' ? form.subjectLine.trim() : '',
+        subjectLine: form.subjectLine.trim(),
         invoiceNumber: form.invoiceNumber,
         status: form.status,
         date: form.date,
@@ -314,6 +314,43 @@ function DocumentDetail() {
     setTimeout(() => printWindow.print(), 250);
   };
 
+  const downloadDocumentCopy = () => {
+    const safeClientName = String(form.clientName || 'Client')
+      .trim()
+      .replace(/\s+/g, '_');
+    const fileName = `${documentTypeLabel(type)}_${form.date}_${safeClientName}.html`;
+    const blob = new Blob(
+      [
+        buildPrintMarkup(
+          {
+            ...form,
+            type,
+            subjectLine: form.subjectLine,
+            items: cleanedItems,
+            total: Number(total.toFixed(2)),
+          },
+          {
+            subtotal: Number(subtotal.toFixed(2)),
+            vatAmount: Number(vatAmount.toFixed(2)),
+            discountAmount: Number(discountAmount.toFixed(2)),
+            total: Number(total.toFixed(2)),
+          }
+        ),
+      ],
+      { type: 'text/html;charset=utf-8' }
+    );
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
+    setMessage(`${documentTypeLabel(type)} downloaded to this PC as an HTML file.`);
+    setError('');
+  };
+
   if (loading) {
     return (
       <div className="d-flex align-items-center gap-2">
@@ -376,19 +413,17 @@ function DocumentDetail() {
               />
             </Form.Group>
           </div>
-          {type === 'quotation' && (
-            <div className="col-md-4">
-              <Form.Group>
-                <Form.Label>Subject Line</Form.Label>
-                <Form.Control
-                  type="text"
-                  placeholder="For example Grade 1"
-                  value={form.subjectLine}
-                  onChange={(event) => handleChange('subjectLine', event.target.value)}
-                />
-              </Form.Group>
-            </div>
-          )}
+          <div className="col-md-4">
+            <Form.Group>
+              <Form.Label>Subject Line</Form.Label>
+              <Form.Control
+                type="text"
+                placeholder="For example Grade 1"
+                value={form.subjectLine}
+                onChange={(event) => handleChange('subjectLine', event.target.value)}
+              />
+            </Form.Group>
+          </div>
           {type === 'quotation' && (
             <div className="col-md-2">
               <Form.Group>
@@ -515,6 +550,9 @@ function DocumentDetail() {
           </Button>
           <Button type="button" variant="secondary" onClick={handlePrint}>
             Print / Save as PDF
+          </Button>
+          <Button type="button" variant="info" onClick={downloadDocumentCopy}>
+            Save to This PC
           </Button>
           <Button
             type="button"

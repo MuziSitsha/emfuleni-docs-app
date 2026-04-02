@@ -273,6 +273,7 @@ function sanitizeQuotation(payload) {
 
 function sanitizeInvoice(payload) {
   const clientName = String(payload?.clientName || '').trim();
+  const subjectLine = String(payload?.subjectLine || '').trim();
   const items = normalizeItems(payload?.items);
   const total = toNumber(payload?.total, NaN);
 
@@ -296,6 +297,7 @@ function sanitizeInvoice(payload) {
   return {
     _id: randomUUID(),
     clientName,
+    subjectLine,
     invoiceNumber:
       String(payload?.invoiceNumber || '').trim() || `INV-${Date.now()}`,
     date,
@@ -337,14 +339,11 @@ function sanitizeDocumentUpdate(type, currentDocument, payload) {
   return {
     ...currentDocument,
     clientName,
-    subjectLine:
-      type === 'quotation'
-        ? String(
-            payload?.subjectLine !== undefined
-              ? payload.subjectLine
-              : currentDocument.subjectLine || ''
-          ).trim()
-        : undefined,
+    subjectLine: String(
+      payload?.subjectLine !== undefined
+        ? payload.subjectLine
+        : currentDocument.subjectLine || ''
+    ).trim(),
     invoiceNumber:
       String(payload?.invoiceNumber || currentDocument.invoiceNumber || '').trim() ||
       `${type === 'quotation' ? 'QTN' : 'INV'}-${Date.now()}`,
