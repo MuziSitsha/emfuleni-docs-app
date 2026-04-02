@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Alert, Button, Container, Form, Table } from 'react-bootstrap';
-import api from './api';
+import { saveLocalDocument } from './localDocuments';
 
 const COMPANY_DETAILS = {
   name: 'Emfuleni Business Lines',
@@ -293,33 +293,6 @@ function Dashboard() {
     });
   };
 
-  const downloadDocumentCopy = () => {
-    const draftDocument = buildDraftDocument();
-
-    if (!draftDocument) {
-      return;
-    }
-
-    const safeClientName = draftDocument.clientName.replace(/\s+/g, '_');
-    const fileName = `${draftDocument.type}_${draftDocument.date}_${safeClientName}.html`;
-    const blob = new Blob([buildPrintMarkup(draftDocument)], {
-      type: 'text/html;charset=utf-8',
-    });
-    const downloadUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(downloadUrl);
-
-    setSaveState({
-      status: 'success',
-      message: `${draftDocument.type} downloaded to this PC as an HTML file.`,
-    });
-  };
-
   const handleSubmit = async (event) => {
     event.preventDefault();
     setSaveState({ status: 'idle', message: '' });
@@ -330,11 +303,11 @@ function Dashboard() {
       return;
     }
 
-    const endpoint = docType === 'Quotation' ? '/quotations' : '/invoices';
     const safeClientName = draftDocument.clientName.replace(/\s+/g, '_');
     const generatedFileName = `${docType}_${documentDate}_${safeClientName}.pdf`;
 
     const payload = {
+      type: docType.toLowerCase(),
       clientName: draftDocument.clientName,
       subjectLine: draftDocument.subjectLine,
       invoiceNumber: draftDocument.invoiceNumber,
@@ -350,15 +323,14 @@ function Dashboard() {
 
     try {
       setSaveState({ status: 'saving', message: '' });
-      await api.post(endpoint, payload);
+      saveLocalDocument(docType.toLowerCase(), payload);
       setSaveState({
         status: 'success',
-        message: `${docType} saved successfully to the backend.`,
+        message: `${docType} saved to history on this device.`,
       });
       resetForm();
     } catch (error) {
-      const errorMessage =
-        error.response?.data?.error || 'Unable to save the document right now.';
+      const errorMessage = 'Unable to save the document on this device right now.';
       setSaveState({ status: 'error', message: errorMessage });
     }
   };
@@ -525,17 +497,9 @@ function Dashboard() {
           variant="secondary"
           className="mt-3"
           type="button"
-          onClick={downloadDocumentCopy}
-        >
-          Save to This PC
-        </Button>{' '}
-        <Button
-          variant="info"
-          className="mt-3"
-          type="button"
           onClick={() => openPrintableDocument('pdf')}
         >
-          Print / Save as PDF
+          Download PDF
         </Button>
       </Form>
     </Container>

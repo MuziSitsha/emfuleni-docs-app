@@ -9,8 +9,13 @@ import {
 } from 'react-bootstrap';
 import { Link } from 'react-router-dom';
 import api from './api';
+import {
+  approveLocalQuotation,
+  deleteLocalDocument,
+  listLocalDocuments,
+} from './localDocuments';
 
-function formatDocument(document, type) {
+function formatDocument(document, type, storageSource = 'remote') {
   const formattedDate = document.date
     ? new Date(document.date).toISOString().split('T')[0]
     : 'No date';
@@ -25,38 +30,60 @@ function formatDocument(document, type) {
     total: document.total ?? 0,
     invoiceNumber: document.invoiceNumber || 'Not assigned',
     items: document.items || [],
+    subjectLine: document.subjectLine || '',
     status: document.status || (type === 'Quotation' ? 'Pending' : 'Issued'),
+    storageSource,
   };
 }
 
 async function loadDocumentsData() {
-  const [quotationsResponse, invoicesResponse, deliveryNotesResponse] =
-    await Promise.all([
-      api.get('/quotations'),
-      api.get('/invoices'),
-      api.get('/delivery-notes'),
-    ]);
+  const localDocuments = listLocalDocuments().map((document) =>
+    formatDocument(
+      document,
+      document.type === 'quotation' ? 'Quotation' : 'Invoice',
+      'local'
+    )
+  );
 
-  const documents = [
-    ...quotationsResponse.data.map((document) =>
-      formatDocument(document, 'Quotation')
-    ),
-    ...invoicesResponse.data.map((document) =>
-      formatDocument(document, 'Invoice')
-    ),
-  ].sort((first, second) => new Date(second.date) - new Date(first.date));
+  try {
+    const [quotationsResponse, invoicesResponse, deliveryNotesResponse] =
+      await Promise.all([
+        api.get('/quotations'),
+        api.get('/invoices'),
+        api.get('/delivery-notes'),
+      ]);
 
-  const notesMap = deliveryNotesResponse.data.reduce((accumulator, note) => {
-    if (note.quotationId?._id) {
-      accumulator[note.quotationId._id] = true;
-    } else if (note.quotationId) {
-      accumulator[note.quotationId] = true;
-    }
+    const remoteDocuments = [
+      ...quotationsResponse.data.map((document) =>
+        formatDocument(document, 'Quotation', 'remote')
+      ),
+      ...invoicesResponse.data.map((document) =>
+        formatDocument(document, 'Invoice', 'remote')
+      ),
+    ];
 
-    return accumulator;
-  }, {});
+    const notesMap = deliveryNotesResponse.data.reduce((accumulator, note) => {
+      if (note.quotationId?._id) {
+        accumulator[note.quotationId._id] = true;
+      } else if (note.quotationId) {
+        accumulator[note.quotationId] = true;
+      }
 
-  return { documents, notesMap };
+      return accumulator;
+    }, {});
+
+    return {
+      documents: [...localDocuments, ...remoteDocuments].sort(
+        (first, second) => new Date(second.date) - new Date(first.date)
+      ),
+      notesMap,
+    };
+  } catch {
+    return {
+      documents: localDocuments,
+      notesMap: {},
+    };
+  }
 }
 
 function RecentDocuments() {
@@ -109,14 +136,18 @@ function RecentDocuments() {
       return;
     }
 
-    try {
-      setProcessingId(document.id);
-      setMessage('');
-      setError('');
+      try {
+        setProcessingId(document.id);
+        setMessage('');
+        setError('');
 
-      await api.delete(`/documents/${document.type.toLowerCase()}/${document.id}`);
-      await refreshDocuments();
-      setMessage(`${document.type} deleted successfully.`);
+        if (document.storageSource === 'local') {
+          deleteLocalDocument(document.type.toLowerCase(), document.id);
+        } else {
+          await api.delete(`/documents/${document.type.toLowerCase()}/${document.id}`);
+        }
+        await refreshDocuments();
+        setMessage(`${document.type} deleted successfully.`);
     } catch (deleteError) {
       const errorMessage =
         deleteError.response?.data?.error ||
@@ -128,14 +159,18 @@ function RecentDocuments() {
   };
 
   const approveQuotation = async (document) => {
-    try {
-      setProcessingId(document.id);
-      setMessage('');
-      setError('');
+      try {
+        setProcessingId(document.id);
+        setMessage('');
+        setError('');
 
-      await api.patch(`/quotations/${document.id}/approve`);
-      await refreshDocuments();
-      setMessage(`Quotation for ${document.clientName} has been approved.`);
+        if (document.storageSource === 'local') {
+          approveLocalQuotation(document.id);
+        } else {
+          await api.patch(`/quotations/${document.id}/approve`);
+        }
+        await refreshDocuments();
+        setMessage(`Quotation for ${document.clientName} has been approved.`);
     } catch (approveError) {
       const errorMessage =
         approveError.response?.data?.error ||
@@ -147,14 +182,19 @@ function RecentDocuments() {
   };
 
   const createDeliveryNote = async (document) => {
-    try {
-      setProcessingId(document.id);
-      setMessage('');
-      setError('');
+      try {
+        setProcessingId(document.id);
+        setMessage('');
+        setError('');
 
-      await api.post('/delivery-notes', {
-        quotationId: document.id,
-        invoiceNumber: document.invoiceNumber,
+        if (document.storageSource === 'local') {
+          setError('Delivery notes are only available for backend-saved quotations.');
+          return;
+        }
+
+        await api.post('/delivery-notes', {
+          quotationId: document.id,
+          invoiceNumber: document.invoiceNumber,
         clientName: document.clientName,
       });
 
@@ -177,6 +217,7 @@ function RecentDocuments() {
       document.type,
       document.invoiceNumber,
       document.status,
+      document.subjectLine,
     ].some((value) => value.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -257,6 +298,7 @@ function RecentDocuments() {
                     onClick={() => createDeliveryNote(document)}
                     disabled={
                       processingId === document.id ||
+                      document.storageSource === 'local' ||
                       document.status !== 'Approved' ||
                       deliveryNotesByQuotationId[document.id]
                     }

@@ -2,6 +2,11 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Container, Form, Spinner, Table } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from './api';
+import {
+  deleteLocalDocument,
+  getLocalDocument,
+  saveLocalDocument,
+} from './localDocuments';
 
 function formatDateInput(value) {
   return value ? new Date(value).toISOString().split('T')[0] : '';
@@ -101,6 +106,33 @@ function DocumentDetail() {
 
   useEffect(() => {
     const loadDocument = async () => {
+      const localDocument = getLocalDocument(type, id);
+
+      if (localDocument) {
+        setForm({
+          type,
+          storageSource: 'local',
+          clientName: localDocument.clientName || '',
+          subjectLine: localDocument.subjectLine || '',
+          invoiceNumber: localDocument.invoiceNumber || '',
+          status: localDocument.status || 'Pending',
+          date: formatDateInput(localDocument.date),
+          items:
+            localDocument.items?.map((item) => ({
+              description: item.description || '',
+              quantity: item.quantity ?? 1,
+              price: item.price ?? 0,
+            })) || [{ description: '', quantity: 1, price: 0 }],
+          vatApplied: Boolean(localDocument.vatApplied),
+          vatRate: localDocument.vatRate ?? 15,
+          discount: localDocument.discount ?? 0,
+          total: localDocument.total ?? 0,
+          fileName: localDocument.fileName || '',
+        });
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError('');
@@ -109,6 +141,7 @@ function DocumentDetail() {
 
         setForm({
           type,
+          storageSource: 'remote',
           clientName: document.clientName || '',
           subjectLine: document.subjectLine || '',
           invoiceNumber: document.invoiceNumber || '',
@@ -219,6 +252,7 @@ function DocumentDetail() {
       setMessage('');
 
       const payload = {
+        _id: id,
         clientName: form.clientName.trim(),
         subjectLine: form.subjectLine.trim(),
         invoiceNumber: form.invoiceNumber,
@@ -232,11 +266,14 @@ function DocumentDetail() {
         fileName: form.fileName,
       };
 
-      const response = await api.patch(`/documents/${type}/${id}`, payload);
-      const document = response.data;
+      const document =
+        form.storageSource === 'local'
+          ? saveLocalDocument(type, payload)
+          : (await api.patch(`/documents/${type}/${id}`, payload)).data;
 
       setForm((currentForm) => ({
         ...currentForm,
+        storageSource: form.storageSource,
         clientName: document.clientName,
         subjectLine: document.subjectLine || '',
         invoiceNumber: document.invoiceNumber,
@@ -249,7 +286,11 @@ function DocumentDetail() {
         total: document.total ?? 0,
         fileName: document.fileName || '',
       }));
-      setMessage(`${documentTypeLabel(type)} updated successfully.`);
+      setMessage(
+        form.storageSource === 'local'
+          ? `${documentTypeLabel(type)} updated in history on this device.`
+          : `${documentTypeLabel(type)} updated successfully.`
+      );
     } catch (saveError) {
       setError(
         saveError.response?.data?.error ||
@@ -272,7 +313,11 @@ function DocumentDetail() {
     try {
       setDeleting(true);
       setError('');
-      await api.delete(`/documents/${type}/${id}`);
+      if (form.storageSource === 'local') {
+        deleteLocalDocument(type, id);
+      } else {
+        await api.delete(`/documents/${type}/${id}`);
+      }
       navigate('/history');
     } catch (deleteError) {
       setError(
@@ -312,43 +357,6 @@ function DocumentDetail() {
     printWindow.document.close();
     printWindow.focus();
     setTimeout(() => printWindow.print(), 250);
-  };
-
-  const downloadDocumentCopy = () => {
-    const safeClientName = String(form.clientName || 'Client')
-      .trim()
-      .replace(/\s+/g, '_');
-    const fileName = `${documentTypeLabel(type)}_${form.date}_${safeClientName}.html`;
-    const blob = new Blob(
-      [
-        buildPrintMarkup(
-          {
-            ...form,
-            type,
-            subjectLine: form.subjectLine,
-            items: cleanedItems,
-            total: Number(total.toFixed(2)),
-          },
-          {
-            subtotal: Number(subtotal.toFixed(2)),
-            vatAmount: Number(vatAmount.toFixed(2)),
-            discountAmount: Number(discountAmount.toFixed(2)),
-            total: Number(total.toFixed(2)),
-          }
-        ),
-      ],
-      { type: 'text/html;charset=utf-8' }
-    );
-    const downloadUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(downloadUrl);
-    setMessage(`${documentTypeLabel(type)} downloaded to this PC as an HTML file.`);
-    setError('');
   };
 
   if (loading) {
@@ -549,10 +557,7 @@ function DocumentDetail() {
             {saving ? 'Saving...' : 'Save Changes'}
           </Button>
           <Button type="button" variant="secondary" onClick={handlePrint}>
-            Print / Save as PDF
-          </Button>
-          <Button type="button" variant="info" onClick={downloadDocumentCopy}>
-            Save to This PC
+            Download PDF
           </Button>
           <Button
             type="button"
