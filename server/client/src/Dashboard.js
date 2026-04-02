@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Alert, Button, Container, Form, Table } from 'react-bootstrap';
+import { downloadPdfFromMarkup, openPrintWindow } from './documentExport';
 import { saveLocalDocument } from './localDocuments';
 
 const COMPANY_DETAILS = {
@@ -265,32 +266,51 @@ function Dashboard() {
       return;
     }
 
-    const printWindow = window.open('', '_blank', 'width=980,height=900');
+    const fileName = `${draftDocument.type}_${draftDocument.date}_${draftDocument.clientName.replace(/\s+/g, '_')}.pdf`;
+    const markup = buildPrintMarkup(draftDocument);
 
-    if (!printWindow) {
-      setSaveState({
-        status: 'error',
-        message: 'Please allow pop-ups so the document can open for printing.',
-      });
+    if (mode === 'download') {
+      downloadPdfFromMarkup(markup, fileName)
+        .then(() => {
+          setSaveState({
+            status: 'success',
+            message: `${draftDocument.type} downloaded to this computer as a PDF.`,
+          });
+        })
+        .catch(() => {
+          setSaveState({
+            status: 'error',
+            message: 'Unable to download the PDF right now.',
+          });
+        });
       return;
     }
 
-    printWindow.document.open();
-    printWindow.document.write(buildPrintMarkup(draftDocument));
-    printWindow.document.close();
-    printWindow.focus();
-
-    setTimeout(() => {
-      printWindow.print();
-    }, 300);
+    if (
+      !openPrintWindow(markup, () => {
+        setSaveState({
+          status: 'error',
+          message: 'Please allow pop-ups so the document can open for printing.',
+        });
+      })
+    ) {
+      return;
+    }
 
     setSaveState({
       status: 'success',
-      message:
-        mode === 'pdf'
-          ? 'Print dialog opened. Choose "Save as PDF" in your browser to download the document.'
-          : `${draftDocument.type} opened in the print dialog.`,
+      message: `${draftDocument.type} opened in the print dialog.`,
     });
+  };
+
+  const handleDownloadPdf = () => {
+    setSaveState({ status: 'idle', message: '' });
+    openPrintableDocument('download');
+  };
+
+  const handlePrint = () => {
+    setSaveState({ status: 'idle', message: '' });
+    openPrintableDocument('print');
   };
 
   const handleSubmit = async (event) => {
@@ -497,9 +517,17 @@ function Dashboard() {
           variant="secondary"
           className="mt-3"
           type="button"
-          onClick={() => openPrintableDocument('pdf')}
+          onClick={handleDownloadPdf}
         >
           Download PDF
+        </Button>{' '}
+        <Button
+          variant="info"
+          className="mt-3"
+          type="button"
+          onClick={handlePrint}
+        >
+          Print
         </Button>
       </Form>
     </Container>

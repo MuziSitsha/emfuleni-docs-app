@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Container, Form, Spinner, Table } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from './api';
+import { downloadPdfFromMarkup, openPrintWindow } from './documentExport';
 import {
   deleteLocalDocument,
   getLocalDocument,
@@ -330,33 +331,62 @@ function DocumentDetail() {
   };
 
   const handlePrint = () => {
-    const printWindow = window.open('', '_blank', 'width=980,height=900');
+    const markup = buildPrintMarkup(
+      {
+        ...form,
+        type,
+        items: cleanedItems,
+        total: Number(total.toFixed(2)),
+      },
+      {
+        subtotal: Number(subtotal.toFixed(2)),
+        vatAmount: Number(vatAmount.toFixed(2)),
+        discountAmount: Number(discountAmount.toFixed(2)),
+        total: Number(total.toFixed(2)),
+      }
+    );
 
-    if (!printWindow) {
-      setError('Please allow pop-ups so the print view can open.');
+    if (
+      !openPrintWindow(markup, () => {
+        setError('Please allow pop-ups so the print view can open.');
+      })
+    ) {
       return;
     }
 
-    printWindow.document.open();
-    printWindow.document.write(
-      buildPrintMarkup(
-        {
-          ...form,
-          type,
-          items: cleanedItems,
-          total: Number(total.toFixed(2)),
-        },
-        {
-          subtotal: Number(subtotal.toFixed(2)),
-          vatAmount: Number(vatAmount.toFixed(2)),
-          discountAmount: Number(discountAmount.toFixed(2)),
-          total: Number(total.toFixed(2)),
-        }
-      )
-    );
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => printWindow.print(), 250);
+    setMessage(`${documentTypeLabel(type)} opened in the print dialog.`);
+    setError('');
+  };
+
+  const handleDownloadPdf = async () => {
+    const safeClientName = String(form.clientName || 'Client')
+      .trim()
+      .replace(/\s+/g, '_');
+    const fileName = `${documentTypeLabel(type)}_${form.date}_${safeClientName}.pdf`;
+
+    try {
+      await downloadPdfFromMarkup(
+        buildPrintMarkup(
+          {
+            ...form,
+            type,
+            items: cleanedItems,
+            total: Number(total.toFixed(2)),
+          },
+          {
+            subtotal: Number(subtotal.toFixed(2)),
+            vatAmount: Number(vatAmount.toFixed(2)),
+            discountAmount: Number(discountAmount.toFixed(2)),
+            total: Number(total.toFixed(2)),
+          }
+        ),
+        fileName
+      );
+      setMessage(`${documentTypeLabel(type)} downloaded to this computer as a PDF.`);
+      setError('');
+    } catch {
+      setError('Unable to download the PDF right now.');
+    }
   };
 
   if (loading) {
@@ -556,8 +586,11 @@ function DocumentDetail() {
           <Button type="submit" variant="success" disabled={saving}>
             {saving ? 'Saving...' : 'Save Changes'}
           </Button>
-          <Button type="button" variant="secondary" onClick={handlePrint}>
+          <Button type="button" variant="secondary" onClick={handleDownloadPdf}>
             Download PDF
+          </Button>
+          <Button type="button" variant="info" onClick={handlePrint}>
+            Print
           </Button>
           <Button
             type="button"
