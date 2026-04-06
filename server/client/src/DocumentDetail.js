@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Container, Form, Spinner, Table } from 'react-bootstrap';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import api from './api';
-import { downloadPdfFromMarkup, openPrintWindow } from './documentExport';
+import { downloadDocumentPdf, openPrintWindow } from './documentExport';
 import {
   deleteLocalDocument,
   getLocalDocument,
@@ -345,23 +345,21 @@ function DocumentDetail() {
     const fileName = `${documentTypeLabel(type)}_${form.date}_${safeClientName}.pdf`;
 
     try {
-      await downloadPdfFromMarkup(
-        buildPrintMarkup(
-          {
-            ...form,
-            type,
-            items: cleanedItems,
-            total: Number(total.toFixed(2)),
-          },
-          {
-            subtotal: Number(subtotal.toFixed(2)),
-            vatAmount: Number(vatAmount.toFixed(2)),
-            discountAmount: Number(discountAmount.toFixed(2)),
-            total: Number(total.toFixed(2)),
-          }
-        ),
-        fileName
-      );
+      await downloadDocumentPdf({
+        document: {
+          ...form,
+          type,
+          items: cleanedItems,
+          total: Number(total.toFixed(2)),
+        },
+        fileName,
+        totals: {
+          subtotal: Number(subtotal.toFixed(2)),
+          vatAmount: Number(vatAmount.toFixed(2)),
+          discountAmount: Number(discountAmount.toFixed(2)),
+          total: Number(total.toFixed(2)),
+        },
+      });
       setMessage(`${documentTypeLabel(type)} downloaded to this computer as a PDF.`);
       setError('');
     } catch {

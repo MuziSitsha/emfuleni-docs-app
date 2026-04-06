@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Button, Container, Form, Table } from 'react-bootstrap';
 import api from './api';
-import { downloadPdfFromMarkup, openPrintWindow } from './documentExport';
+import { downloadDocumentPdf, openPrintWindow } from './documentExport';
 
 const COMPANY_DETAILS = {
   name: 'Emfuleni Business Lines',
@@ -283,7 +283,17 @@ function Dashboard() {
     const markup = buildPrintMarkup(draftDocument);
 
     if (mode === 'download') {
-      downloadPdfFromMarkup(markup, fileName)
+      downloadDocumentPdf({
+        document: draftDocument,
+        fileName,
+        totals: {
+          subtotal: draftDocument.subtotal,
+          vatAmount: draftDocument.vatAmount,
+          discountAmount: draftDocument.discountAmount,
+          total: draftDocument.total,
+        },
+        companyDetails: COMPANY_DETAILS,
+      })
         .then(() => {
           setSaveState({
             status: 'success',
