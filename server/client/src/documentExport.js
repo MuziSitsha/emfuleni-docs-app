@@ -26,14 +26,14 @@ function buildExportContainer(markup) {
 
   exportRoot.setAttribute('data-pdf-export-root', 'true');
   exportRoot.style.position = 'fixed';
-  exportRoot.style.left = '0';
+  exportRoot.style.left = '-10000px';
   exportRoot.style.top = '0';
   exportRoot.style.width = '210mm';
   exportRoot.style.minHeight = '297mm';
   exportRoot.style.padding = '0';
   exportRoot.style.margin = '0';
   exportRoot.style.background = '#ffffff';
-  exportRoot.style.opacity = '0.01';
+  exportRoot.style.opacity = '1';
   exportRoot.style.pointerEvents = 'none';
   exportRoot.style.zIndex = '2147483647';
   exportRoot.style.overflow = 'hidden';
