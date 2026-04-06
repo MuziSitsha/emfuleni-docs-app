@@ -26,7 +26,7 @@ function buildExportContainer(markup) {
 
   exportRoot.setAttribute('data-pdf-export-root', 'true');
   exportRoot.style.position = 'fixed';
-  exportRoot.style.left = '-10000px';
+  exportRoot.style.left = '0';
   exportRoot.style.top = '0';
   exportRoot.style.width = '210mm';
   exportRoot.style.minHeight = '297mm';
