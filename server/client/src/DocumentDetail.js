@@ -6,8 +6,30 @@ import { downloadPdfFromMarkup, openPrintWindow } from './documentExport';
 import {
   deleteLocalDocument,
   getLocalDocument,
-  saveLocalDocument,
 } from './localDocuments';
+
+function buildFormState(type, document, storageSource) {
+  return {
+    type,
+    storageSource,
+    clientName: document.clientName || '',
+    subjectLine: document.subjectLine || '',
+    invoiceNumber: document.invoiceNumber || '',
+    status: document.status || 'Pending',
+    date: formatDateInput(document.date),
+    items:
+      document.items?.map((item) => ({
+        description: item.description || '',
+        quantity: item.quantity ?? 1,
+        price: item.price ?? 0,
+      })) || [{ description: '', quantity: 1, price: 0 }],
+    vatApplied: Boolean(document.vatApplied),
+    vatRate: document.vatRate ?? 15,
+    discount: document.discount ?? 0,
+    total: document.total ?? 0,
+    fileName: document.fileName || '',
+  };
+}
 
 function formatDateInput(value) {
   return value ? new Date(value).toISOString().split('T')[0] : '';
@@ -48,6 +70,8 @@ function buildPrintMarkup(document, totals) {
           table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
           th, td { border: 1px solid #d5dce6; padding: 10px 12px; text-align: left; }
           th { background: #f4f7fb; }
+          .table-summary-row td { font-weight: 700; background: #f8fafc; }
+          .table-summary-label { text-align: right; }
           .totals { margin-left: auto; width: 320px; }
           .row { display: flex; justify-content: space-between; margin: 8px 0; }
           .grand-total { border-top: 2px solid #172b4d; padding-top: 12px; margin-top: 12px; font-weight: 700; }
@@ -82,7 +106,13 @@ function buildPrintMarkup(document, totals) {
               <th>Line Total</th>
             </tr>
           </thead>
-          <tbody>${rows}</tbody>
+          <tbody>
+            ${rows}
+            <tr class="table-summary-row">
+              <td colspan="4" class="table-summary-label">Items Total</td>
+              <td>R ${totals.subtotal.toFixed(2)}</td>
+            </tr>
+          </tbody>
         </table>
         <section class="totals">
           <div class="row"><span>Subtotal</span><strong>R ${totals.subtotal.toFixed(2)}</strong></div>
@@ -110,26 +140,7 @@ function DocumentDetail() {
       const localDocument = getLocalDocument(type, id);
 
       if (localDocument) {
-        setForm({
-          type,
-          storageSource: 'local',
-          clientName: localDocument.clientName || '',
-          subjectLine: localDocument.subjectLine || '',
-          invoiceNumber: localDocument.invoiceNumber || '',
-          status: localDocument.status || 'Pending',
-          date: formatDateInput(localDocument.date),
-          items:
-            localDocument.items?.map((item) => ({
-              description: item.description || '',
-              quantity: item.quantity ?? 1,
-              price: item.price ?? 0,
-            })) || [{ description: '', quantity: 1, price: 0 }],
-          vatApplied: Boolean(localDocument.vatApplied),
-          vatRate: localDocument.vatRate ?? 15,
-          discount: localDocument.discount ?? 0,
-          total: localDocument.total ?? 0,
-          fileName: localDocument.fileName || '',
-        });
+        setForm(buildFormState(type, localDocument, 'local'));
         setLoading(false);
         return;
       }
@@ -140,26 +151,7 @@ function DocumentDetail() {
         const response = await api.get(`/documents/${type}/${id}`);
         const document = response.data;
 
-        setForm({
-          type,
-          storageSource: 'remote',
-          clientName: document.clientName || '',
-          subjectLine: document.subjectLine || '',
-          invoiceNumber: document.invoiceNumber || '',
-          status: document.status || 'Pending',
-          date: formatDateInput(document.date),
-          items:
-            document.items?.map((item) => ({
-              description: item.description || '',
-              quantity: item.quantity ?? 1,
-              price: item.price ?? 0,
-            })) || [{ description: '', quantity: 1, price: 0 }],
-          vatApplied: Boolean(document.vatApplied),
-          vatRate: document.vatRate ?? 15,
-          discount: document.discount ?? 0,
-          total: document.total ?? 0,
-          fileName: document.fileName || '',
-        });
+        setForm(buildFormState(type, document, 'remote'));
       } catch (fetchError) {
         setError(
           fetchError.response?.data?.error || 'Unable to load this document.'
@@ -253,7 +245,6 @@ function DocumentDetail() {
       setMessage('');
 
       const payload = {
-        _id: id,
         clientName: form.clientName.trim(),
         subjectLine: form.subjectLine.trim(),
         invoiceNumber: form.invoiceNumber,
@@ -267,31 +258,20 @@ function DocumentDetail() {
         fileName: form.fileName,
       };
 
-      const document =
-        form.storageSource === 'local'
-          ? saveLocalDocument(type, payload)
-          : (await api.patch(`/documents/${type}/${id}`, payload)).data;
+      let document;
 
-      setForm((currentForm) => ({
-        ...currentForm,
-        storageSource: form.storageSource,
-        clientName: document.clientName,
-        subjectLine: document.subjectLine || '',
-        invoiceNumber: document.invoiceNumber,
-        status: document.status || currentForm.status,
-        date: formatDateInput(document.date),
-        items: document.items,
-        vatApplied: Boolean(document.vatApplied),
-        vatRate: document.vatRate ?? 15,
-        discount: document.discount ?? 0,
-        total: document.total ?? 0,
-        fileName: document.fileName || '',
-      }));
-      setMessage(
-        form.storageSource === 'local'
-          ? `${documentTypeLabel(type)} updated in history on this device.`
-          : `${documentTypeLabel(type)} updated successfully.`
-      );
+      if (form.storageSource === 'local') {
+        const endpoint = type === 'quotation' ? '/quotations' : '/invoices';
+        document = (await api.post(endpoint, payload)).data;
+        deleteLocalDocument(type, id);
+        setForm(buildFormState(type, document, 'remote'));
+        setMessage(`${documentTypeLabel(type)} uploaded to the website backend.`);
+        navigate(`/history/${type}/${document._id}`, { replace: true });
+      } else {
+        document = (await api.patch(`/documents/${type}/${id}`, payload)).data;
+        setForm(buildFormState(type, document, 'remote'));
+        setMessage(`${documentTypeLabel(type)} updated successfully.`);
+      }
     } catch (saveError) {
       setError(
         saveError.response?.data?.error ||
@@ -418,6 +398,11 @@ function DocumentDetail() {
 
       {message && <Alert variant="success">{message}</Alert>}
       {error && <Alert variant="danger">{error}</Alert>}
+      {form.storageSource === 'local' && (
+        <Alert variant="warning">
+          This document is only stored in this browser. Saving changes here will upload it to the website backend.
+        </Alert>
+      )}
 
       <Form onSubmit={handleSave}>
         <div className="row g-3 mb-3">
@@ -484,6 +469,7 @@ function DocumentDetail() {
               <th>Description</th>
               <th>Quantity</th>
               <th>Price</th>
+              <th>Line Total</th>
               <th>Action</th>
             </tr>
           </thead>
@@ -519,6 +505,9 @@ function DocumentDetail() {
                       handleItemChange(index, 'price', event.target.value)
                     }
                   />
+                </td>
+                <td className="align-middle">
+                  R {(parseNumber(item.quantity) * parseNumber(item.price)).toFixed(2)}
                 </td>
                 <td>
                   <Button

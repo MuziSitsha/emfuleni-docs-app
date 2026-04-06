@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Button, Container, Form, Table } from 'react-bootstrap';
+import api from './api';
 import { downloadPdfFromMarkup, openPrintWindow } from './documentExport';
-import { saveLocalDocument } from './localDocuments';
 
 const COMPANY_DETAILS = {
   name: 'Emfuleni Business Lines',
@@ -189,6 +189,13 @@ function Dashboard() {
             th {
               background: #f4f7fb;
             }
+            .table-summary-row td {
+              font-weight: 700;
+              background: #f8fafc;
+            }
+            .table-summary-label {
+              text-align: right;
+            }
             .totals {
               margin-left: auto;
               width: 320px;
@@ -244,7 +251,13 @@ function Dashboard() {
                   <th>Line Total</th>
                 </tr>
               </thead>
-              <tbody>${rows}</tbody>
+              <tbody>
+                ${rows}
+                <tr class="table-summary-row">
+                  <td colspan="4" class="table-summary-label">Items Total</td>
+                  <td>R ${document.subtotal.toFixed(2)}</td>
+                </tr>
+              </tbody>
             </table>
           </section>
 
@@ -343,14 +356,17 @@ function Dashboard() {
 
     try {
       setSaveState({ status: 'saving', message: '' });
-      saveLocalDocument(docType.toLowerCase(), payload);
+      const endpoint = docType === 'Quotation' ? '/quotations' : '/invoices';
+      await api.post(endpoint, payload);
       setSaveState({
         status: 'success',
-        message: `${docType} saved to history on this device.`,
+        message: `${docType} saved successfully to the website backend.`,
       });
       resetForm();
     } catch (error) {
-      const errorMessage = 'Unable to save the document on this device right now.';
+      const errorMessage =
+        error.response?.data?.error ||
+        'Unable to save this document to the website backend right now.';
       setSaveState({ status: 'error', message: errorMessage });
     }
   };
@@ -418,6 +434,7 @@ function Dashboard() {
               <th>Description</th>
               <th>Quantity</th>
               <th>Price</th>
+              <th>Line Total</th>
             </tr>
           </thead>
           <tbody>
@@ -452,6 +469,9 @@ function Dashboard() {
                       handleItemChange(index, 'price', event.target.value)
                     }
                   />
+                </td>
+                <td className="align-middle">
+                  R {(parseNumber(item.quantity) * parseNumber(item.price)).toFixed(2)}
                 </td>
               </tr>
             ))}

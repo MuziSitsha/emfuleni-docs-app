@@ -1,11 +1,23 @@
 const fs = require('fs/promises');
 const path = require('path');
 const { randomUUID } = require('crypto');
+const AppState = require('../models/AppState');
+const { connectToDatabase, isMongoConfigured } = require('./database');
 
 const defaultDataFile = path.join(__dirname, '..', 'data', 'documents.json');
 const dataFile = path.resolve(process.env.DATA_FILE || defaultDataFile);
 
 let writeQueue = Promise.resolve();
+
+function createInitialState() {
+  return {
+    clients: [],
+    quotations: [],
+    invoices: [],
+    deliveryNotes: [],
+    payments: [],
+  };
+}
 
 function createHttpError(status, message) {
   const error = new Error(message);
@@ -45,19 +57,50 @@ function sortByDateDesc(items) {
   });
 }
 
+function normalizeStoreShape(parsed) {
+  return {
+    clients: Array.isArray(parsed?.clients) ? parsed.clients : [],
+    quotations: Array.isArray(parsed?.quotations) ? parsed.quotations : [],
+    invoices: Array.isArray(parsed?.invoices) ? parsed.invoices : [],
+    deliveryNotes: Array.isArray(parsed?.deliveryNotes) ? parsed.deliveryNotes : [],
+    payments: Array.isArray(parsed?.payments) ? parsed.payments : [],
+  };
+}
+
 async function ensureStore() {
+  if (isMongoConfigured()) {
+    await connectToDatabase();
+
+    const existingStore = await AppState.findOne({ key: 'default' }).lean();
+
+    if (existingStore) {
+      return;
+    }
+
+    let initialState = createInitialState();
+
+    try {
+      await fs.access(dataFile);
+      const contents = await fs.readFile(dataFile, 'utf8');
+      initialState = normalizeStoreShape(JSON.parse(contents));
+    } catch {
+      initialState = createInitialState();
+    }
+
+    await AppState.create({
+      key: 'default',
+      ...initialState,
+    });
+
+    return;
+  }
+
   await fs.mkdir(path.dirname(dataFile), { recursive: true });
 
   try {
     await fs.access(dataFile);
   } catch {
-    const initialState = {
-      clients: [],
-      quotations: [],
-      invoices: [],
-      deliveryNotes: [],
-      payments: [],
-    };
+    const initialState = createInitialState();
 
     await fs.writeFile(dataFile, JSON.stringify(initialState, null, 2));
   }
@@ -65,22 +108,30 @@ async function ensureStore() {
 
 async function readStore() {
   await ensureStore();
-  const contents = await fs.readFile(dataFile, 'utf8');
-  const parsed = JSON.parse(contents);
 
-  return {
-    clients: Array.isArray(parsed.clients) ? parsed.clients : [],
-    quotations: Array.isArray(parsed.quotations) ? parsed.quotations : [],
-    invoices: Array.isArray(parsed.invoices) ? parsed.invoices : [],
-    deliveryNotes: Array.isArray(parsed.deliveryNotes) ? parsed.deliveryNotes : [],
-    payments: Array.isArray(parsed.payments) ? parsed.payments : [],
-  };
+  if (isMongoConfigured()) {
+    const store = await AppState.findOne({ key: 'default' }).lean();
+    return normalizeStoreShape(store);
+  }
+
+  const contents = await fs.readFile(dataFile, 'utf8');
+  return normalizeStoreShape(JSON.parse(contents));
 }
 
 function writeStore(nextState) {
-  writeQueue = writeQueue.then(() =>
-    fs.writeFile(dataFile, JSON.stringify(nextState, null, 2))
-  );
+  writeQueue = writeQueue.then(async () => {
+    if (isMongoConfigured()) {
+      await connectToDatabase();
+      await AppState.findOneAndUpdate(
+        { key: 'default' },
+        { $set: normalizeStoreShape(nextState) },
+        { upsert: true }
+      );
+      return;
+    }
+
+    await fs.writeFile(dataFile, JSON.stringify(nextState, null, 2));
+  });
 
   return writeQueue;
 }

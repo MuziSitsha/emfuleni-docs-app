@@ -1,10 +1,11 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const fs = require('fs');
-const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const documentsRoutes = require('./routes/documents');
+const { getDatabaseStatus, getStorageMode } = require('./lib/database');
 
 const app = express();
 
@@ -14,7 +15,8 @@ app.use(express.json());
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
-    storage: 'file',
+    storage: getStorageMode(),
+    database: getDatabaseStatus(),
     timestamp: new Date().toISOString(),
   });
 });

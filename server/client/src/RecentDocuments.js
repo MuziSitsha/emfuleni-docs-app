@@ -77,11 +77,13 @@ async function loadDocumentsData() {
         (first, second) => new Date(second.date) - new Date(first.date)
       ),
       notesMap,
+      localDocumentsCount: localDocuments.length,
     };
   } catch {
     return {
       documents: localDocuments,
       notesMap: {},
+      localDocumentsCount: localDocuments.length,
     };
   }
 }
@@ -96,6 +98,8 @@ function RecentDocuments() {
     {}
   );
   const [processingId, setProcessingId] = useState('');
+  const [syncingLocal, setSyncingLocal] = useState(false);
+  const [localDocumentsCount, setLocalDocumentsCount] = useState(0);
 
   useEffect(() => {
     const fetchDocuments = async () => {
@@ -103,11 +107,16 @@ function RecentDocuments() {
         setLoading(true);
         setError('');
 
-        const { documents: nextDocuments, notesMap } =
+        const {
+          documents: nextDocuments,
+          notesMap,
+          localDocumentsCount: nextLocalDocumentsCount,
+        } =
           await loadDocumentsData();
 
         setDocuments(nextDocuments);
         setDeliveryNotesByQuotationId(notesMap);
+        setLocalDocumentsCount(nextLocalDocumentsCount);
       } catch (fetchError) {
         const errorMessage =
           fetchError.response?.data?.error ||
@@ -122,9 +131,59 @@ function RecentDocuments() {
   }, []);
 
   const refreshDocuments = async () => {
-    const { documents: nextDocuments, notesMap } = await loadDocumentsData();
+    const {
+      documents: nextDocuments,
+      notesMap,
+      localDocumentsCount: nextLocalDocumentsCount,
+    } = await loadDocumentsData();
     setDocuments(nextDocuments);
     setDeliveryNotesByQuotationId(notesMap);
+    setLocalDocumentsCount(nextLocalDocumentsCount);
+  };
+
+  const uploadLocalDocuments = async () => {
+    const localDocuments = listLocalDocuments();
+
+    if (localDocuments.length === 0) {
+      setMessage('There are no local documents left to upload.');
+      setError('');
+      return;
+    }
+
+    try {
+      setSyncingLocal(true);
+      setMessage('');
+      setError('');
+
+      for (const document of localDocuments) {
+        const endpoint = document.type === 'quotation' ? '/quotations' : '/invoices';
+        await api.post(endpoint, {
+          clientName: document.clientName,
+          subjectLine: document.subjectLine,
+          invoiceNumber: document.invoiceNumber,
+          status: document.status,
+          date: document.date,
+          items: document.items,
+          vatApplied: document.vatApplied,
+          vatRate: document.vatRate,
+          discount: document.discount,
+          total: document.total,
+          fileName: document.fileName,
+        });
+        deleteLocalDocument(document.type, document._id);
+      }
+
+      await refreshDocuments();
+      setMessage('Local documents uploaded to the website backend successfully.');
+    } catch (syncError) {
+      const errorMessage =
+        syncError.response?.data?.error ||
+        'Unable to upload local documents to the website backend right now.';
+      setError(errorMessage);
+    } finally {
+      await refreshDocuments();
+      setSyncingLocal(false);
+    }
   };
 
   const deleteDocument = async (document) => {
@@ -243,6 +302,20 @@ function RecentDocuments() {
 
       {message && <Alert variant="success">{message}</Alert>}
       {error && <Alert variant="danger">{error}</Alert>}
+      {localDocumentsCount > 0 && (
+        <Alert variant="warning" className="d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <span>
+            {localDocumentsCount} document{localDocumentsCount === 1 ? '' : 's'} {localDocumentsCount === 1 ? 'is' : 'are'} stored only in this browser and can still be lost if browser data is cleared.
+          </span>
+          <Button
+            variant="warning"
+            onClick={uploadLocalDocuments}
+            disabled={syncingLocal}
+          >
+            {syncingLocal ? 'Uploading...' : 'Upload Local Documents to Website'}
+          </Button>
+        </Alert>
+      )}
 
       <Table striped bordered hover>
         <thead>

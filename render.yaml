@@ -13,5 +13,9 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: REQUIRE_MONGO
+        value: 'true'
+      - key: MONGODB_URI
+        sync: false
       - key: DATA_FILE
         value: /var/data/documents.json
