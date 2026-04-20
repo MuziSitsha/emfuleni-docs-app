@@ -354,6 +354,10 @@ function RecentDocuments() {
   const paginationItems = buildPaginationItems(totalPages, activePage);
 
   useEffect(() => {
+    if (loading) {
+      return;
+    }
+
     if (currentPage === activePage) {
       return;
     }
@@ -367,7 +371,7 @@ function RecentDocuments() {
     }
 
     setSearchParams(nextParams, { replace: true });
-  }, [activePage, currentPage, searchParams, setSearchParams]);
+  }, [activePage, currentPage, loading, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (loading || typeof location.state?.restoreScrollY !== 'number') {
