@@ -4,16 +4,68 @@ import {
   Button,
   Container,
   Form,
+  Pagination,
   Spinner,
   Table,
 } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import api from './api';
 import {
   approveLocalQuotation,
   deleteLocalDocument,
   listLocalDocuments,
 } from './localDocuments';
+
+const PAGE_SIZE = 15;
+
+function buildHistoryPath(page, filters) {
+  const params = new URLSearchParams();
+  const trimmedSearchTerm = filters.searchTerm.trim();
+
+  if (page > 1) {
+    params.set('page', String(page));
+  }
+
+  if (trimmedSearchTerm) {
+    params.set('search', trimmedSearchTerm);
+  }
+
+  if (filters.typeFilter !== 'all') {
+    params.set('type', filters.typeFilter);
+  }
+
+  if (filters.statusFilter !== 'all') {
+    params.set('status', filters.statusFilter);
+  }
+
+  const query = params.toString();
+
+  return query ? `/history?${query}` : '/history';
+}
+
+function buildPaginationItems(totalPages, activePage) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  if (activePage <= 4) {
+    return [1, 2, 3, 4, 5, 'end-ellipsis', totalPages];
+  }
+
+  if (activePage >= totalPages - 3) {
+    return [1, 'start-ellipsis', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+  }
+
+  return [
+    1,
+    'start-ellipsis',
+    activePage - 1,
+    activePage,
+    activePage + 1,
+    'end-ellipsis',
+    totalPages,
+  ];
+}
 
 function formatDocument(document, type, storageSource = 'remote') {
   const formattedDate = document.date
@@ -89,8 +141,10 @@ async function loadDocumentsData() {
 }
 
 function RecentDocuments() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [documents, setDocuments] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -100,6 +154,14 @@ function RecentDocuments() {
   const [processingId, setProcessingId] = useState('');
   const [syncingLocal, setSyncingLocal] = useState(false);
   const [localDocumentsCount, setLocalDocumentsCount] = useState(0);
+
+  const searchTerm = searchParams.get('search') || '';
+  const typeFilter = searchParams.get('type') || 'all';
+  const statusFilter = searchParams.get('status') || 'all';
+  const requestedPage = Number.parseInt(searchParams.get('page') || '1', 10);
+  const currentPage = Number.isFinite(requestedPage) && requestedPage > 0
+    ? requestedPage
+    : 1;
 
   useEffect(() => {
     const fetchDocuments = async () => {
@@ -277,20 +339,178 @@ function RecentDocuments() {
       document.invoiceNumber,
       document.status,
       document.subjectLine,
-    ].some((value) => value.toLowerCase().includes(searchTerm.toLowerCase()))
+    ].some((value) => value.toLowerCase().includes(searchTerm.toLowerCase())) &&
+    (typeFilter === 'all' || document.type.toLowerCase() === typeFilter) &&
+    (statusFilter === 'all' || document.status.toLowerCase() === statusFilter)
   );
+
+  const totalPages = Math.max(1, Math.ceil(filteredDocs.length / PAGE_SIZE));
+  const activePage = Math.min(currentPage, totalPages);
+  const pageStartIndex = (activePage - 1) * PAGE_SIZE;
+  const paginatedDocs = filteredDocs.slice(
+    pageStartIndex,
+    pageStartIndex + PAGE_SIZE
+  );
+  const paginationItems = buildPaginationItems(totalPages, activePage);
+
+  useEffect(() => {
+    if (currentPage === activePage) {
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+
+    if (activePage > 1) {
+      nextParams.set('page', String(activePage));
+    } else {
+      nextParams.delete('page');
+    }
+
+    setSearchParams(nextParams, { replace: true });
+  }, [activePage, currentPage, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (loading || typeof location.state?.restoreScrollY !== 'number') {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: location.state.restoreScrollY, behavior: 'auto' });
+    });
+  }, [loading, location.state]);
+
+  const updateSearchParams = (nextFilters, replace = false) => {
+    const nextParams = new URLSearchParams();
+    const trimmedSearchTerm = nextFilters.searchTerm.trim();
+
+    if (nextFilters.page > 1) {
+      nextParams.set('page', String(nextFilters.page));
+    }
+
+    if (trimmedSearchTerm) {
+      nextParams.set('search', trimmedSearchTerm);
+    }
+
+    if (nextFilters.typeFilter !== 'all') {
+      nextParams.set('type', nextFilters.typeFilter);
+    }
+
+    if (nextFilters.statusFilter !== 'all') {
+      nextParams.set('status', nextFilters.statusFilter);
+    }
+
+    setSearchParams(nextParams, { replace });
+  };
+
+  const handleSearchChange = (event) => {
+    updateSearchParams(
+      {
+        page: 1,
+        searchTerm: event.target.value,
+        typeFilter,
+        statusFilter,
+      },
+      true
+    );
+  };
+
+  const handleTypeFilterChange = (event) => {
+    updateSearchParams(
+      {
+        page: 1,
+        searchTerm,
+        typeFilter: event.target.value,
+        statusFilter,
+      },
+      true
+    );
+  };
+
+  const handleStatusFilterChange = (event) => {
+    updateSearchParams(
+      {
+        page: 1,
+        searchTerm,
+        typeFilter,
+        statusFilter: event.target.value,
+      },
+      true
+    );
+  };
+
+  const clearFilters = () => {
+    updateSearchParams(
+      {
+        page: 1,
+        searchTerm: '',
+        typeFilter: 'all',
+        statusFilter: 'all',
+      },
+      true
+    );
+  };
+
+  const handlePageChange = (page) => {
+    updateSearchParams({ page, searchTerm, typeFilter, statusFilter });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const openDocument = (document) => {
+    navigate(`/history/${document.type.toLowerCase()}/${document.id}`, {
+      state: {
+        returnToHistory: buildHistoryPath(activePage, {
+          searchTerm,
+          typeFilter,
+          statusFilter,
+        }),
+        restoreScrollY: window.scrollY,
+      },
+    });
+  };
 
   return (
     <Container className="mt-4">
       <h2>History (All Quotations & Invoices)</h2>
 
       <Form className="mb-3">
-        <Form.Control
-          type="text"
-          placeholder="Search by file name, client, type, invoice number, or status..."
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-        />
+        <div className="row g-2 align-items-end">
+          <div className="col-md-6">
+            <Form.Control
+              type="text"
+              placeholder="Search by file name, client, type, invoice number, or status..."
+              value={searchTerm}
+              onChange={handleSearchChange}
+            />
+          </div>
+          <div className="col-md-2">
+            <Form.Select value={typeFilter} onChange={handleTypeFilterChange}>
+              <option value="all">All types</option>
+              <option value="quotation">Quotations</option>
+              <option value="invoice">Invoices</option>
+            </Form.Select>
+          </div>
+          <div className="col-md-2">
+            <Form.Select value={statusFilter} onChange={handleStatusFilterChange}>
+              <option value="all">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="issued">Issued</option>
+            </Form.Select>
+          </div>
+          <div className="col-md-2 d-grid">
+            <Button
+              variant="outline-secondary"
+              onClick={clearFilters}
+              disabled={
+                searchTerm === '' &&
+                typeFilter === 'all' &&
+                statusFilter === 'all'
+              }
+            >
+              Clear Filters
+            </Button>
+          </div>
+        </div>
       </Form>
 
       {loading && (
@@ -339,7 +559,7 @@ function RecentDocuments() {
             </tr>
           )}
 
-          {filteredDocs.map((document) => (
+          {paginatedDocs.map((document) => (
             <tr key={document.id}>
               <td>{document.type}</td>
               <td>{document.status}</td>
@@ -350,8 +570,7 @@ function RecentDocuments() {
               <td>R {Number(document.total).toFixed(2)}</td>
               <td className="d-flex gap-2 flex-wrap">
                 <Button
-                  as={Link}
-                  to={`/history/${document.type.toLowerCase()}/${document.id}`}
+                  onClick={() => openDocument(document)}
                   variant="info"
                 >
                   Open
@@ -395,6 +614,37 @@ function RecentDocuments() {
           ))}
         </tbody>
       </Table>
+
+      {!loading && filteredDocs.length > 0 && (
+        <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+          <div className="text-muted">
+            Showing {pageStartIndex + 1}-{Math.min(pageStartIndex + PAGE_SIZE, filteredDocs.length)} of {filteredDocs.length} documents
+          </div>
+          <Pagination className="mb-0">
+            <Pagination.Prev
+              onClick={() => handlePageChange(activePage - 1)}
+              disabled={activePage === 1}
+            />
+            {paginationItems.map((item) => (
+              typeof item === 'number' ? (
+                <Pagination.Item
+                  key={item}
+                  active={item === activePage}
+                  onClick={() => handlePageChange(item)}
+                >
+                  {item}
+                </Pagination.Item>
+              ) : (
+                <Pagination.Ellipsis key={item} disabled />
+              )
+            ))}
+            <Pagination.Next
+              onClick={() => handlePageChange(activePage + 1)}
+              disabled={activePage === totalPages}
+            />
+          </Pagination>
+        </div>
+      )}
     </Container>
   );
 }

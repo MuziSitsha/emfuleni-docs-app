@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Container, Form, Spinner, Table } from 'react-bootstrap';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import api from './api';
 import { downloadDocumentPdf, openPrintWindow } from './documentExport';
 import {
@@ -127,6 +127,7 @@ function buildPrintMarkup(document, totals) {
 
 function DocumentDetail() {
   const { type, id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -134,6 +135,14 @@ function DocumentDetail() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [form, setForm] = useState(null);
+  const historyReturnTarget =
+    typeof location.state?.returnToHistory === 'string'
+      ? location.state.returnToHistory
+      : '/history';
+  const historyReturnState =
+    typeof location.state?.restoreScrollY === 'number'
+      ? { restoreScrollY: location.state.restoreScrollY }
+      : undefined;
 
   useEffect(() => {
     const loadDocument = async () => {
@@ -266,7 +275,10 @@ function DocumentDetail() {
         deleteLocalDocument(type, id);
         setForm(buildFormState(type, document, 'remote'));
         setMessage(`${documentTypeLabel(type)} uploaded to the website backend.`);
-        navigate(`/history/${type}/${document._id}`, { replace: true });
+        navigate(`/history/${type}/${document._id}`, {
+          replace: true,
+          state: location.state,
+        });
       } else {
         document = (await api.patch(`/documents/${type}/${id}`, payload)).data;
         setForm(buildFormState(type, document, 'remote'));
@@ -299,7 +311,7 @@ function DocumentDetail() {
       } else {
         await api.delete(`/documents/${type}/${id}`);
       }
-      navigate('/history');
+      navigate(historyReturnTarget, { state: historyReturnState });
     } catch (deleteError) {
       setError(
         deleteError.response?.data?.error ||
@@ -380,6 +392,10 @@ function DocumentDetail() {
     return <Alert variant="danger">Document not found.</Alert>;
   }
 
+  const handleBackToHistory = () => {
+    navigate(historyReturnTarget, { state: historyReturnState });
+  };
+
   return (
     <Container className="mt-4">
       <div className="d-flex justify-content-between align-items-center mb-3">
@@ -389,7 +405,7 @@ function DocumentDetail() {
             Review, edit, print, or delete this saved document.
           </p>
         </div>
-        <Button as={Link} to="/history" variant="outline-secondary">
+        <Button onClick={handleBackToHistory} variant="outline-secondary">
           Back to History
         </Button>
       </div>
