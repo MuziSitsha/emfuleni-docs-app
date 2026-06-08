@@ -9,8 +9,6 @@ const COMPANY_DETAILS = {
   tagline: 'School Supply Solutions',
   registration: 'Enterprise Number: 2025/119633/07',
   location: [
-    '1207 Fa-Hua Avenue, Culturapark',
-    'Bronkhorstspruit, 1020, Gauteng',
     'emfulenibusiness@outlook.com',
   ],
 };
