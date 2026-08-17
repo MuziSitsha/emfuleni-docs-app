@@ -595,7 +595,6 @@ function RecentDocuments() {
                     disabled={
                       processingId === document.id ||
                       document.storageSource === 'local' ||
-                      document.status !== 'Approved' ||
                       deliveryNotesByQuotationId[document.id]
                     }
                   >

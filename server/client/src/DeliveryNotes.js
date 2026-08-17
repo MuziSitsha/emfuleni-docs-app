@@ -21,6 +21,28 @@ function formatDate(value) {
   });
 }
 
+function toDateInputValue(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return date.toISOString().split('T')[0];
+}
+
+function buildDraftFromNote(note) {
+  return {
+    clientName: note.clientName || '',
+    invoiceNumber: note.invoiceNumber || '',
+    date: toDateInputValue(note.date),
+    items: (note.items || []).map((item) => ({
+      description: item.description || '',
+      quantity: item.quantity ?? '',
+    })),
+    notes: note.notes || '',
+    authorizedSignature: note.authorizedSignature || '',
+  };
+}
+
 function buildSubject(note) {
   const quotationSubjectLine = note.quotationId?.subjectLine?.trim();
   if (quotationSubjectLine) {
@@ -44,10 +66,7 @@ function DeliveryNotes() {
   const syncDrafts = (items) => {
     setDrafts(
       items.reduce((accumulator, note) => {
-        accumulator[note._id] = {
-          notes: note.notes || '',
-          authorizedSignature: note.authorizedSignature || '',
-        };
+        accumulator[note._id] = buildDraftFromNote(note);
         return accumulator;
       }, {})
     );
@@ -92,10 +111,7 @@ function DeliveryNotes() {
     setEditingId(note._id);
     setDrafts((currentDrafts) => ({
       ...currentDrafts,
-      [note._id]: {
-        notes: note.notes || '',
-        authorizedSignature: note.authorizedSignature || '',
-      },
+      [note._id]: buildDraftFromNote(note),
     }));
   };
 
@@ -103,11 +119,44 @@ function DeliveryNotes() {
     setEditingId('');
     setDrafts((currentDrafts) => ({
       ...currentDrafts,
-      [note._id]: {
-        notes: note.notes || '',
-        authorizedSignature: note.authorizedSignature || '',
-      },
+      [note._id]: buildDraftFromNote(note),
     }));
+  };
+
+  const handleItemChange = (noteId, index, field, value) => {
+    setDrafts((currentDrafts) => {
+      const draft = currentDrafts[noteId] || { items: [] };
+      const items = draft.items.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      );
+      return { ...currentDrafts, [noteId]: { ...draft, items } };
+    });
+  };
+
+  const addItemRow = (noteId) => {
+    setDrafts((currentDrafts) => {
+      const draft = currentDrafts[noteId] || { items: [] };
+      return {
+        ...currentDrafts,
+        [noteId]: {
+          ...draft,
+          items: [...draft.items, { description: '', quantity: '' }],
+        },
+      };
+    });
+  };
+
+  const removeItemRow = (noteId, index) => {
+    setDrafts((currentDrafts) => {
+      const draft = currentDrafts[noteId] || { items: [] };
+      return {
+        ...currentDrafts,
+        [noteId]: {
+          ...draft,
+          items: draft.items.filter((_, itemIndex) => itemIndex !== index),
+        },
+      };
+    });
   };
 
   const saveDeliveryNote = async (noteId) => {
@@ -116,9 +165,15 @@ function DeliveryNotes() {
       setError('');
       setMessage('');
 
+      const draft = drafts[noteId] || {};
+
       const response = await api.patch(`/delivery-notes/${noteId}`, {
-        notes: drafts[noteId]?.notes || '',
-        authorizedSignature: drafts[noteId]?.authorizedSignature || '',
+        clientName: draft.clientName || '',
+        invoiceNumber: draft.invoiceNumber || '',
+        date: draft.date || undefined,
+        items: draft.items || [],
+        notes: draft.notes || '',
+        authorizedSignature: draft.authorizedSignature || '',
       });
 
       setNotes((currentNotes) =>
@@ -126,10 +181,7 @@ function DeliveryNotes() {
       );
       setDrafts((currentDrafts) => ({
         ...currentDrafts,
-        [noteId]: {
-          notes: response.data.notes || '',
-          authorizedSignature: response.data.authorizedSignature || '',
-        },
+        [noteId]: buildDraftFromNote(response.data),
       }));
       setEditingId('');
       setMessage('Delivery note updated successfully.');
@@ -320,9 +372,101 @@ function DeliveryNotes() {
               {editingId === note._id && (
                 <Form className="delivery-note-editor">
                   <p className="delivery-note-helper">
-                    Update the note text and signature below, then save before
+                    Update the delivery note details below, then save before
                     printing.
                   </p>
+                  <div className="delivery-note-editor-grid">
+                    <Form.Group controlId={`delivery-note-client-${note._id}`}>
+                      <Form.Label>Client Name</Form.Label>
+                      <Form.Control
+                        type="text"
+                        value={drafts[note._id]?.clientName || ''}
+                        onChange={(event) =>
+                          handleDraftChange(note._id, 'clientName', event.target.value)
+                        }
+                      />
+                    </Form.Group>
+
+                    <Form.Group
+                      controlId={`delivery-note-invoice-number-${note._id}`}
+                    >
+                      <Form.Label>Reference Number</Form.Label>
+                      <Form.Control
+                        type="text"
+                        value={drafts[note._id]?.invoiceNumber || ''}
+                        onChange={(event) =>
+                          handleDraftChange(
+                            note._id,
+                            'invoiceNumber',
+                            event.target.value
+                          )
+                        }
+                      />
+                    </Form.Group>
+
+                    <Form.Group controlId={`delivery-note-date-${note._id}`}>
+                      <Form.Label>Date</Form.Label>
+                      <Form.Control
+                        type="date"
+                        value={drafts[note._id]?.date || ''}
+                        onChange={(event) =>
+                          handleDraftChange(note._id, 'date', event.target.value)
+                        }
+                      />
+                    </Form.Group>
+                  </div>
+
+                  <div className="delivery-note-editor-items">
+                    <Form.Label>Items</Form.Label>
+                    {(drafts[note._id]?.items || []).map((item, index) => (
+                      <div
+                        key={`${note._id}-item-${index}`}
+                        className="delivery-note-editor-item-row"
+                      >
+                        <Form.Control
+                          type="text"
+                          placeholder="Description"
+                          value={item.description}
+                          onChange={(event) =>
+                            handleItemChange(
+                              note._id,
+                              index,
+                              'description',
+                              event.target.value
+                            )
+                          }
+                        />
+                        <Form.Control
+                          type="number"
+                          min="0"
+                          placeholder="Qty"
+                          value={item.quantity}
+                          onChange={(event) =>
+                            handleItemChange(
+                              note._id,
+                              index,
+                              'quantity',
+                              event.target.value
+                            )
+                          }
+                        />
+                        <Button
+                          variant="outline-danger"
+                          onClick={() => removeItemRow(note._id, index)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      variant="outline-primary"
+                      size="sm"
+                      onClick={() => addItemRow(note._id)}
+                    >
+                      Add Item
+                    </Button>
+                  </div>
+
                   <div className="delivery-note-editor-grid">
                     <Form.Group controlId={`delivery-note-notes-${note._id}`}>
                       <Form.Label>Notes</Form.Label>

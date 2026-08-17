@@ -257,6 +257,18 @@
   flex-wrap: wrap;
 }
 
+.delivery-note-editor-items {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.delivery-note-editor-item-row {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) 110px auto;
+  gap: 0.6rem;
+  align-items: center;
+}
+
 .delivery-note-helper {
   margin: 0;
   color: var(--muted);
@@ -317,6 +329,10 @@
   }
 
   .delivery-note-editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .delivery-note-editor-item-row {
     grid-template-columns: 1fr;
   }
 }

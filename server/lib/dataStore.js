@@ -567,13 +567,6 @@ async function createDeliveryNote(payload) {
       throw createHttpError(404, 'Quotation not found.');
     }
 
-    if (quotation.status !== 'Approved') {
-      throw createHttpError(
-        409,
-        'Approve the quotation before creating a delivery note.'
-      );
-    }
-
     const existingNote = store.deliveryNotes.find(
       (note) => note.quotationId === quotationId
     );
@@ -611,6 +604,35 @@ async function updateDeliveryNote(id, payload) {
       throw createHttpError(404, 'Delivery note not found.');
     }
 
+    const clientName = String(
+      payload?.clientName !== undefined ? payload.clientName : note.clientName
+    ).trim();
+
+    if (!clientName) {
+      throw createHttpError(400, 'Please enter a client name.');
+    }
+
+    const items = normalizeItems(
+      payload?.items !== undefined ? payload.items : note.items,
+      false
+    );
+
+    if (items.length === 0) {
+      throw createHttpError(
+        400,
+        'Add at least one item with a description and quantity.'
+      );
+    }
+
+    note.clientName = clientName;
+    note.invoiceNumber =
+      String(
+        payload?.invoiceNumber !== undefined
+          ? payload.invoiceNumber
+          : note.invoiceNumber || ''
+      ).trim() || note.invoiceNumber;
+    note.date = payload?.date ? toIsoDate(payload.date) : note.date;
+    note.items = items;
     note.notes = String(payload?.notes || '').trim();
     note.authorizedSignature = String(payload?.authorizedSignature || '').trim();
 
