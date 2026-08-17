@@ -132,6 +132,8 @@ function DocumentDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [creatingDeliveryNote, setCreatingDeliveryNote] = useState(false);
+  const [hasDeliveryNote, setHasDeliveryNote] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [form, setForm] = useState(null);
@@ -161,6 +163,18 @@ function DocumentDetail() {
         const document = response.data;
 
         setForm(buildFormState(type, document, 'remote'));
+
+        try {
+          const deliveryNotesResponse = await api.get('/delivery-notes');
+          const existingNote = deliveryNotesResponse.data.find((note) => {
+            const noteSourceType = note.sourceType || 'quotation';
+            const noteSourceId = note.quotationId?._id || note.quotationId;
+            return noteSourceType === type && noteSourceId === id;
+          });
+          setHasDeliveryNote(Boolean(existingNote));
+        } catch {
+          setHasDeliveryNote(false);
+        }
       } catch (fetchError) {
         setError(
           fetchError.response?.data?.error || 'Unable to load this document.'
@@ -319,6 +333,31 @@ function DocumentDetail() {
       );
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleCreateDeliveryNote = async () => {
+    try {
+      setCreatingDeliveryNote(true);
+      setError('');
+      setMessage('');
+
+      await api.post('/delivery-notes', {
+        quotationId: id,
+        sourceType: type,
+        invoiceNumber: form.invoiceNumber,
+        clientName: form.clientName,
+      });
+
+      setHasDeliveryNote(true);
+      setMessage(`Delivery note created for ${form.clientName}.`);
+    } catch (createError) {
+      setError(
+        createError.response?.data?.error ||
+          'Unable to create a delivery note for this document.'
+      );
+    } finally {
+      setCreatingDeliveryNote(false);
     }
   };
 
@@ -594,6 +633,22 @@ function DocumentDetail() {
           </Button>
           <Button type="button" variant="info" onClick={handlePrint}>
             Print
+          </Button>
+          <Button
+            type="button"
+            variant="success"
+            onClick={handleCreateDeliveryNote}
+            disabled={
+              creatingDeliveryNote ||
+              hasDeliveryNote ||
+              form.storageSource === 'local'
+            }
+          >
+            {hasDeliveryNote
+              ? 'Delivery Note Created'
+              : creatingDeliveryNote
+                ? 'Working...'
+                : 'Create Delivery Note'}
           </Button>
           <Button
             type="button"
