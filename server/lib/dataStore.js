@@ -423,10 +423,21 @@ function sanitizeDocumentUpdate(type, currentDocument, payload) {
   };
 }
 
-function populateDeliveryNote(note, quotation) {
+function getDeliveryNoteSourceCollection(store, sourceType) {
+  return sourceType === 'invoice' ? store.invoices : store.quotations;
+}
+
+function findDeliveryNoteSource(store, note) {
+  const sourceType = note.sourceType || 'quotation';
+  return getDeliveryNoteSourceCollection(store, sourceType).find(
+    (item) => item._id === note.quotationId
+  );
+}
+
+function populateDeliveryNote(note, sourceDocument) {
   return {
     ...note,
-    quotationId: quotation ? { ...quotation } : note.quotationId,
+    quotationId: sourceDocument ? { ...sourceDocument } : note.quotationId,
   };
 }
 
@@ -465,9 +476,10 @@ async function updateDocument(type, id, payload) {
       status: 'Active',
     });
 
-    if (type === 'quotation') {
+    if (type === 'quotation' || type === 'invoice') {
       store.deliveryNotes.forEach((note) => {
-        if (note.quotationId === id) {
+        const noteSourceType = note.sourceType || 'quotation';
+        if (noteSourceType === type && note.quotationId === id) {
           note.clientName = document.clientName;
           note.invoiceNumber = document.invoiceNumber;
         }
@@ -502,10 +514,11 @@ async function deleteDocument(type, id) {
 
     const [deletedDocument] = collection.splice(index, 1);
 
-    if (type === 'quotation') {
-      store.deliveryNotes = store.deliveryNotes.filter(
-        (note) => note.quotationId !== deletedDocument._id
-      );
+    if (type === 'quotation' || type === 'invoice') {
+      store.deliveryNotes = store.deliveryNotes.filter((note) => {
+        const noteSourceType = note.sourceType || 'quotation';
+        return !(noteSourceType === type && note.quotationId === deletedDocument._id);
+      });
     }
 
     return { ...deletedDocument };
@@ -546,53 +559,57 @@ async function listDeliveryNotes() {
   const store = await readStore();
 
   return sortByDateDesc(store.deliveryNotes).map((note) =>
-    populateDeliveryNote(
-      note,
-      store.quotations.find((quotation) => quotation._id === note.quotationId)
-    )
+    populateDeliveryNote(note, findDeliveryNoteSource(store, note))
   );
 }
 
 async function createDeliveryNote(payload) {
   return mutateStore(async (store) => {
-    const quotationId = String(payload?.quotationId || '').trim();
+    const sourceType = payload?.sourceType === 'invoice' ? 'invoice' : 'quotation';
+    const sourceLabel = sourceType === 'invoice' ? 'Invoice' : 'Quotation';
+    const sourceId = String(payload?.quotationId || '').trim();
 
-    if (!quotationId) {
-      throw createHttpError(400, 'Quotation ID is required.');
+    if (!sourceId) {
+      throw createHttpError(400, `${sourceLabel} ID is required.`);
     }
 
-    const quotation = store.quotations.find((item) => item._id === quotationId);
+    const sourceDocument = getDeliveryNoteSourceCollection(store, sourceType).find(
+      (item) => item._id === sourceId
+    );
 
-    if (!quotation) {
-      throw createHttpError(404, 'Quotation not found.');
+    if (!sourceDocument) {
+      throw createHttpError(404, `${sourceLabel} not found.`);
     }
 
     const existingNote = store.deliveryNotes.find(
-      (note) => note.quotationId === quotationId
+      (note) =>
+        note.quotationId === sourceId &&
+        (note.sourceType || 'quotation') === sourceType
     );
 
     if (existingNote) {
       throw createHttpError(
         409,
-        'A delivery note already exists for this quotation.'
+        `A delivery note already exists for this ${sourceLabel.toLowerCase()}.`
       );
     }
 
     const note = {
       _id: randomUUID(),
-      quotationId,
+      quotationId: sourceId,
+      sourceType,
       invoiceNumber:
-        String(quotation.invoiceNumber || payload?.invoiceNumber || '').trim() ||
+        String(sourceDocument.invoiceNumber || payload?.invoiceNumber || '').trim() ||
         `DN-${Date.now()}`,
-      clientName: quotation.clientName,
+      clientName: sourceDocument.clientName,
       date: toIsoDate(payload?.date),
-      items: normalizeItems(quotation.items, false),
+      items: normalizeItems(sourceDocument.items, false),
       notes: String(payload?.notes || '').trim(),
       authorizedSignature: String(payload?.authorizedSignature || '').trim(),
     };
 
     store.deliveryNotes.push(note);
-    return populateDeliveryNote(note, quotation);
+    return populateDeliveryNote(note, sourceDocument);
   });
 }
 
@@ -636,11 +653,7 @@ async function updateDeliveryNote(id, payload) {
     note.notes = String(payload?.notes || '').trim();
     note.authorizedSignature = String(payload?.authorizedSignature || '').trim();
 
-    const quotation = store.quotations.find(
-      (item) => item._id === note.quotationId
-    );
-
-    return populateDeliveryNote(note, quotation);
+    return populateDeliveryNote(note, findDeliveryNoteSource(store, note));
   });
 }
 

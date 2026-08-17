@@ -68,6 +68,7 @@ const DeliveryNoteSchema = new mongoose.Schema(
   {
     _id: { type: String, required: true },
     quotationId: { type: String, required: true },
+    sourceType: { type: String, default: 'quotation' },
     invoiceNumber: { type: String, default: '' },
     clientName: { type: String, default: '' },
     date: { type: String, default: '' },

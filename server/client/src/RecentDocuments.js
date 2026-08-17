@@ -309,12 +309,13 @@ function RecentDocuments() {
         setError('');
 
         if (document.storageSource === 'local') {
-          setError('Delivery notes are only available for backend-saved quotations.');
+          setError('Delivery notes are only available for backend-saved documents.');
           return;
         }
 
         await api.post('/delivery-notes', {
           quotationId: document.id,
+          sourceType: document.type === 'Invoice' ? 'invoice' : 'quotation',
           invoiceNumber: document.invoiceNumber,
         clientName: document.clientName,
       });
@@ -324,7 +325,7 @@ function RecentDocuments() {
     } catch (createError) {
       const errorMessage =
         createError.response?.data?.error ||
-        'Unable to create a delivery note for this quotation.';
+        'Unable to create a delivery note for this document.';
       setError(errorMessage);
     } finally {
       setProcessingId('');
@@ -588,7 +589,7 @@ function RecentDocuments() {
                     {processingId === document.id ? 'Working...' : 'Approve'}
                   </Button>
                 )}
-                {document.type === 'Quotation' && (
+                {(document.type === 'Quotation' || document.type === 'Invoice') && (
                   <Button
                     variant="success"
                     onClick={() => createDeliveryNote(document)}

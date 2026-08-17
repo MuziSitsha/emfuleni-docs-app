@@ -21,7 +21,7 @@ function formatDisplayDate(value) {
 }
 
 function Dashboard() {
-  const [docType, setDocType] = useState('Quotation');
+  const [docType, setDocType] = useState('Invoice');
   const [clientName, setClientName] = useState('');
   const [subjectLine, setSubjectLine] = useState('');
   const [documentDate, setDocumentDate] = useState(
