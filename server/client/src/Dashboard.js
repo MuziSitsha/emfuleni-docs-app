@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Button, Container, Form, Table } from 'react-bootstrap';
 import api from './api';
+import { useCompanySettings, bankingMarkup } from './bankingDetails';
 import { downloadDocumentPdf, openPrintWindow } from './documentExport';
 
 const COMPANY_DETAILS = {
@@ -21,6 +22,7 @@ function formatDisplayDate(value) {
 }
 
 function Dashboard() {
+  const bankingDetails = useCompanySettings();
   const [docType, setDocType] = useState('Invoice');
   const [clientName, setClientName] = useState('');
   const [subjectLine, setSubjectLine] = useState('');
@@ -265,6 +267,7 @@ function Dashboard() {
             <div class="totals-row"><span>Discount${document.discount ? ` (${document.discount}%)` : ''}</span><strong>R ${document.discountAmount.toFixed(2)}</strong></div>
             <div class="totals-row grand-total"><span>Total</span><strong>R ${document.total.toFixed(2)}</strong></div>
           </section>
+          ${bankingMarkup(bankingDetails)}
         </body>
       </html>
     `;
@@ -291,6 +294,7 @@ function Dashboard() {
           total: draftDocument.total,
         },
         companyDetails: COMPANY_DETAILS,
+        bankingDetails,
       })
         .then(() => {
           setSaveState({

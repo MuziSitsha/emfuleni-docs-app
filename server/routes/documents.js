@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const {
+  getCompanySettings,
+  updateCompanySettings,
   createClient,
   approveQuotation,
   createDeliveryNote,
@@ -30,6 +32,15 @@ function handleRouteError(res, error) {
   const status = error.status || 500;
   res.status(status).json({ error: error.message || 'Something went wrong.' });
 }
+
+router.get('/company-settings', async (_req, res) => {
+  try { res.json(await getCompanySettings()); }
+  catch (error) { handleRouteError(res, error); }
+});
+router.put('/company-settings', async (req, res) => {
+  try { res.json(await updateCompanySettings(req.body)); }
+  catch (error) { handleRouteError(res, error); }
+});
 
 // Save a new quotation
 router.post('/quotations', async (req, res) => {

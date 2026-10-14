@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Button, Container, Form, Spinner, Table } from 'react-bootstrap';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import api from './api';
+import { useCompanySettings, bankingMarkup } from './bankingDetails';
 import { downloadDocumentPdf, openPrintWindow } from './documentExport';
 import {
   deleteLocalDocument,
@@ -43,7 +44,7 @@ function buildDisplaySubject(document) {
   return String(document.subjectLine || '').trim();
 }
 
-function buildPrintMarkup(document, totals) {
+function buildPrintMarkup(document, totals, bankingDetails) {
   const rows = document.items
     .map(
       (item, index) => `
@@ -120,12 +121,14 @@ function buildPrintMarkup(document, totals) {
           <div class="row"><span>Discount</span><strong>R ${totals.discountAmount.toFixed(2)}</strong></div>
           <div class="row grand-total"><span>Total</span><strong>R ${totals.total.toFixed(2)}</strong></div>
         </section>
+        ${bankingMarkup(bankingDetails)}
       </body>
     </html>
   `;
 }
 
 function DocumentDetail() {
+  const bankingDetails = useCompanySettings();
   const { type, id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -374,7 +377,8 @@ function DocumentDetail() {
         vatAmount: Number(vatAmount.toFixed(2)),
         discountAmount: Number(discountAmount.toFixed(2)),
         total: Number(total.toFixed(2)),
-      }
+      },
+      bankingDetails
     );
 
     if (
@@ -397,6 +401,7 @@ function DocumentDetail() {
 
     try {
       await downloadDocumentPdf({
+        bankingDetails,
         document: {
           ...form,
           type,

@@ -3,6 +3,7 @@ import './App.css';
 import { Container, Navbar, Nav } from 'react-bootstrap';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import Dashboard from './Dashboard';
+import CompanySettings from './CompanySettings';
 import PaymentRecorder from './PaymentRecorder';
 import Clients from './Clients';
 import Reports from './Reports';
@@ -34,12 +35,14 @@ function App() {
             <Nav.Link as={Link} to="/payments">Payments</Nav.Link>
             <Nav.Link as={Link} to="/delivery-notes">Delivery Notes</Nav.Link>
             <Nav.Link as={Link} to="/history">History</Nav.Link>
+            <Nav.Link as={Link} to="/settings">Company Settings</Nav.Link>
           </Nav>
         </Container>
       </Navbar>
 
       <Container className="mt-4">
         <Routes>
+          <Route path="/settings" element={<CompanySettings />} />
           <Route path="/" element={<Dashboard />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/clients" element={<Clients />} />

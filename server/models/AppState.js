@@ -94,6 +94,7 @@ const PaymentSchema = new mongoose.Schema(
 
 const AppStateSchema = new mongoose.Schema(
   {
+    companySettings: { type: Object, default: () => require('../lib/companySettings') },
     key: { type: String, required: true, unique: true, default: 'default' },
     clients: { type: [ClientSchema], default: [] },
     quotations: { type: [QuotationSchema], default: [] },

@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { DEFAULT_BANKING_DETAILS, bankingLines } from './bankingDetails';
 
 const DEFAULT_COMPANY_DETAILS = {
   name: 'Emfuleni Business Lines',
@@ -51,6 +52,7 @@ export async function downloadDocumentPdf({
   fileName,
   totals,
   companyDetails = DEFAULT_COMPANY_DETAILS,
+  bankingDetails = DEFAULT_BANKING_DETAILS,
 }) {
   const pdf = new jsPDF({
     unit: 'mm',
@@ -180,5 +182,25 @@ export async function downloadDocumentPdf({
     align: 'right',
   });
 
+  let bankingY = totalY + 18;
+  if (bankingY + 32 > pdf.internal.pageSize.getHeight() - 14) {
+    pdf.addPage();
+    bankingY = 20;
+  }
+  pdf.setFontSize(11);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('Banking Details', 14, bankingY);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(10);
+  bankingLines(bankingDetails).forEach(line => {
+    const wrapped = pdf.splitTextToSize(line, pageWidth - 28);
+    const height = wrapped.length * 5;
+    if (bankingY + height + 6 > pdf.internal.pageSize.getHeight() - 14) {
+      pdf.addPage(); bankingY = 14;
+    }
+    bankingY += 6;
+    pdf.text(wrapped, 14, bankingY);
+    bankingY += height - 5;
+  });
   pdf.save(fileName);
 }

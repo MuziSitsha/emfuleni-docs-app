@@ -7,6 +7,7 @@ const { connectToDatabase, isMongoConfigured } = require('./database');
 const defaultDataFile = path.join(__dirname, '..', 'data', 'documents.json');
 const dataFile = path.resolve(process.env.DATA_FILE || defaultDataFile);
 
+const defaultCompanySettings = require('./companySettings');
 let writeQueue = Promise.resolve();
 
 function createInitialState() {
@@ -59,6 +60,7 @@ function sortByDateDesc(items) {
 
 function normalizeStoreShape(parsed) {
   return {
+    companySettings: { ...defaultCompanySettings, ...parsed?.companySettings },
     clients: Array.isArray(parsed?.clients) ? parsed.clients : [],
     quotations: Array.isArray(parsed?.quotations) ? parsed.quotations : [],
     invoices: Array.isArray(parsed?.invoices) ? parsed.invoices : [],
@@ -1062,7 +1064,31 @@ async function exportStoreAsCsv() {
   return csvLines.join('\n');
 }
 
+async function getCompanySettings() {
+  return (await readStore()).companySettings;
+}
+
+async function updateCompanySettings(payload = {}) {
+  const settings = {};
+  for (const field of Object.keys(defaultCompanySettings)) {
+    const value = payload[field];
+    if (typeof value !== 'string' || !value.trim() || value.trim().length > 100) {
+      throw createHttpError(400, 'All banking fields are required (maximum 100 characters).');
+    }
+    settings[field] = value.trim();
+  }
+  if (!/^\d{6}$/.test(settings.branchCode) || !/^\d{6,20}$/.test(settings.accountNumber)) {
+    throw createHttpError(400, 'Enter a six-digit branch code and a valid account number.');
+  }
+  return mutateStore((store) => {
+    store.companySettings = settings;
+    return settings;
+  });
+}
+
 module.exports = {
+  getCompanySettings,
+  updateCompanySettings,
   createClient,
   createDeliveryNote,
   createInvoice,
